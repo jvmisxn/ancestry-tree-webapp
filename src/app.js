@@ -56,6 +56,31 @@ function personById(id) {
   return people().find((person) => person.id === id);
 }
 
+function relationshipIndex() {
+  const index = new Map(people().map((person) => [
+    person.id,
+    {
+      parents: new Set(person.parents || []),
+      spouses: new Set(person.spouses || []),
+      children: new Set(person.children || []),
+    },
+  ]));
+
+  for (const person of people()) {
+    for (const parentId of person.parents || []) {
+      index.get(parentId)?.children.add(person.id);
+    }
+    for (const spouseId of person.spouses || []) {
+      index.get(spouseId)?.spouses.add(person.id);
+    }
+    for (const childId of person.children || []) {
+      index.get(childId)?.parents.add(person.id);
+    }
+  }
+
+  return index;
+}
+
 function render() {
   renderPeople();
   renderDetails();
@@ -135,10 +160,11 @@ function renderTree() {
   const root = personById(state.rootId);
   if (!root) return;
 
-  const graph = buildBranch(root.id);
-  const directIds = directRelatives(root.id);
-  const nodes = layoutNodes(graph);
-  const links = layoutLinks(nodes);
+  const index = relationshipIndex();
+  const graph = buildBranch(root.id, index);
+  const directIds = directRelatives(root.id, index);
+  const nodes = layoutNodes(graph, index);
+  const links = layoutLinks(nodes, index);
   const width = Math.max(els.viewport.clientWidth, 900);
   const height = Math.max(els.viewport.clientHeight, 640);
 
@@ -180,12 +206,12 @@ function renderTree() {
   }
 }
 
-function buildBranch(rootId) {
-  const ids = connectedRelatives(rootId);
+function buildBranch(rootId, index) {
+  const ids = connectedRelatives(rootId, index);
   return ids.map((id) => personById(id)).filter(Boolean);
 }
 
-function connectedRelatives(rootId) {
+function connectedRelatives(rootId, index) {
   const queue = [rootId];
   const seen = new Set();
   const ordered = [];
@@ -196,17 +222,17 @@ function connectedRelatives(rootId) {
     if (!person) continue;
     seen.add(id);
     ordered.push(id);
-    queue.push(...relationshipIds(person));
+    queue.push(...relationshipIds(id, index));
   }
   return ordered;
 }
 
-function directRelatives(rootId) {
-  return new Set([rootId, ...walkLine(rootId, "parents"), ...walkLine(rootId, "children")]);
+function directRelatives(rootId, index) {
+  return new Set([rootId, ...walkLine(rootId, "parents", index), ...walkLine(rootId, "children", index)]);
 }
 
-function walkLine(rootId, key) {
-  const queue = [...(personById(rootId)?.[key] || [])];
+function walkLine(rootId, key, index) {
+  const queue = [...(index.get(rootId)?.[key] || [])];
   const seen = new Set();
   const ordered = [];
   while (queue.length) {
@@ -216,52 +242,91 @@ function walkLine(rootId, key) {
     if (!person) continue;
     seen.add(id);
     ordered.push(id);
-    queue.push(...(person[key] || []));
+    queue.push(...(index.get(id)?.[key] || []));
   }
   return ordered;
 }
 
-function layoutNodes(branch) {
+function layoutNodes(branch, index) {
+  const maxColumns = 7;
+  const columnGap = 230;
+  const laneGap = 96;
+  const generationGap = 124;
   const root = personById(state.rootId);
   const rows = new Map();
   for (const person of branch) {
-    const generation = generationOffset(root.id, person.id);
+    const generation = generationOffset(root.id, person.id, index);
     if (!rows.has(generation)) rows.set(generation, []);
     rows.get(generation).push(person);
   }
 
   const sortedRows = [...rows.entries()].sort(([a], [b]) => a - b);
   const nodes = [];
-  for (const [generation, rowPeople] of sortedRows) {
-    const y = 290 + generation * 130;
-    const totalWidth = (rowPeople.length - 1) * 230;
-    rowPeople.forEach((person, index) => {
-      nodes.push({ person, x: 450 - totalWidth / 2 + index * 230, y });
+  let y = 120;
+  for (const [, rowPeople] of sortedRows) {
+    const lanes = chunk(rowPeople, maxColumns);
+    lanes.forEach((lane, laneIndex) => {
+      const laneWidth = (lane.length - 1) * columnGap;
+      lane.forEach((person, index) => {
+        nodes.push({ person, x: 450 - laneWidth / 2 + index * columnGap, y: y + laneIndex * laneGap });
+      });
     });
+    y += lanes.length * laneGap + generationGap;
   }
   return nodes;
 }
 
-function layoutLinks(nodes) {
+function chunk(items, size) {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function layoutLinks(nodes, index) {
   const nodeById = new Map(nodes.map((node) => [node.person.id, node]));
   const links = [];
+  const seen = new Set();
   for (const node of nodes) {
-    for (const childId of node.person.children || []) {
+    for (const childId of index.get(node.person.id)?.children || []) {
       const child = nodeById.get(childId);
-      if (child) links.push({ x1: node.x, y1: node.y + 30, x2: child.x, y2: child.y - 30 });
+      const key = `${node.person.id}:${childId}`;
+      if (child && !seen.has(key)) {
+        seen.add(key);
+        links.push({ x1: node.x, y1: node.y + 30, x2: child.x, y2: child.y - 30 });
+      }
     }
   }
   return links;
 }
 
-function generationOffset(rootId, targetId) {
+function treeBounds(nodes) {
+  if (!nodes.length) return { minX: 0, maxX: 0, minY: 0, maxY: 0, width: 0, height: 0 };
+  const xs = nodes.map((node) => node.x);
+  const ys = nodes.map((node) => node.y);
+  const minX = Math.min(...xs) - 110;
+  const maxX = Math.max(...xs) + 110;
+  const minY = Math.min(...ys) - 50;
+  const maxY = Math.max(...ys) + 50;
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+}
+
+function generationOffset(rootId, targetId, index) {
   if (rootId === targetId) return 0;
-  const weighted = weightedDistance(rootId, targetId);
+  const weighted = weightedDistance(rootId, targetId, index);
   if (weighted !== null) return weighted;
   return 1;
 }
 
-function weightedDistance(startId, targetId) {
+function weightedDistance(startId, targetId, index) {
   const queue = [{ id: startId, generation: 0 }];
   const seen = new Set();
   while (queue.length) {
@@ -269,16 +334,17 @@ function weightedDistance(startId, targetId) {
     if (current.id === targetId) return current.generation;
     if (seen.has(current.id)) continue;
     seen.add(current.id);
-    const person = personById(current.id);
-    for (const parentId of person?.parents || []) queue.push({ id: parentId, generation: current.generation - 1 });
-    for (const spouseId of person?.spouses || []) queue.push({ id: spouseId, generation: current.generation });
-    for (const childId of person?.children || []) queue.push({ id: childId, generation: current.generation + 1 });
+    const relations = index.get(current.id);
+    for (const parentId of relations?.parents || []) queue.push({ id: parentId, generation: current.generation - 1 });
+    for (const spouseId of relations?.spouses || []) queue.push({ id: spouseId, generation: current.generation });
+    for (const childId of relations?.children || []) queue.push({ id: childId, generation: current.generation + 1 });
   }
   return null;
 }
 
-function relationshipIds(person) {
-  return [...(person.parents || []), ...(person.spouses || []), ...(person.children || [])];
+function relationshipIds(id, index) {
+  const relations = index.get(id);
+  return [...(relations?.parents || []), ...(relations?.spouses || []), ...(relations?.children || [])];
 }
 
 function selectPerson(id, reroot = true) {
@@ -288,9 +354,18 @@ function selectPerson(id, reroot = true) {
 }
 
 function fitTree() {
-  state.scale = 1;
-  state.offsetX = Math.max(0, (els.viewport.clientWidth - 900) / 2);
-  state.offsetY = 0;
+  const index = relationshipIndex();
+  const root = personById(state.rootId);
+  const graph = root ? buildBranch(root.id, index) : [];
+  const nodes = layoutNodes(graph, index);
+  const bounds = treeBounds(nodes);
+  const width = Math.max(els.viewport.clientWidth, 900);
+  const height = Math.max(els.viewport.clientHeight, 640);
+  const scaleX = width / Math.max(bounds.width + 48, 1);
+  const scaleY = height / Math.max(bounds.height + 48, 1);
+  state.scale = Math.min(1, Math.max(0.42, Math.min(scaleX, scaleY)));
+  state.offsetX = (width - bounds.width * state.scale) / 2 - bounds.minX * state.scale;
+  state.offsetY = (height - bounds.height * state.scale) / 2 - bounds.minY * state.scale;
   renderTree();
 }
 
