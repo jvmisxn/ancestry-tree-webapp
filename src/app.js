@@ -471,11 +471,38 @@ function groupAnchor(group, index, directOrder, generation) {
 
   const spouseOrders = group.people
     .flatMap((person) => [...(index.get(person.id)?.spouses || [])])
-    .map((id) => rowOrder.get(id))
+    .map((id) => {
+      const directSpouseOrder = rowOrder.get(id);
+      if (directSpouseOrder === undefined) return undefined;
+
+      const directSpouseSide = directLineSpouseSide(id, generation, index, directOrder);
+      if (directSpouseSide === 0) return directSpouseOrder + 0.35;
+      return directSpouseOrder - directSpouseSide * 0.35;
+    })
     .filter((order) => order !== undefined);
-  if (spouseOrders.length) return Math.min(...spouseOrders) + 0.35;
+  if (spouseOrders.length) return Math.min(...spouseOrders);
 
   return Math.min(...group.people.map((person) => weightedDistance(state.rootId, person.id, index) ?? 999));
+}
+
+function directLineSpouseSide(personId, generation, index, directOrder) {
+  const rowOrder = directOrder.get(generation) || new Map();
+  const childOrder = directOrder.get(generation + 1) || new Map();
+  const personOrder = rowOrder.get(personId);
+  if (personOrder === undefined || !childOrder.size) return 0;
+
+  for (const spouseId of index.get(personId)?.spouses || []) {
+    const spouseOrder = rowOrder.get(spouseId);
+    if (spouseOrder === undefined) continue;
+
+    const hasDirectChild = [...(index.get(personId)?.children || [])].some((childId) => {
+      const childParents = index.get(childId)?.parents || new Set();
+      return childOrder.has(childId) && childParents.has(spouseId);
+    });
+    if (hasDirectChild) return Math.sign(spouseOrder - personOrder);
+  }
+
+  return 0;
 }
 
 function directAncestorOrder(rootId, index) {
