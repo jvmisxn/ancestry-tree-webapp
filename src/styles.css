@@ -1,15 +1,16 @@
 :root {
   color-scheme: light;
-  --ink: #1f2933;
-  --muted: #62717f;
-  --line: #d8e0e8;
-  --panel: #ffffff;
-  --paper: #f5f7f4;
-  --accent: #2f6f73;
-  --accent-strong: #1e4f52;
-  --warm: #a45d35;
-  --shadow: 0 18px 44px rgba(31, 41, 51, 0.12);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ink: #2b2118;
+  --muted: #755f4c;
+  --line: #b98b64;
+  --panel: #fbf5e6;
+  --paper: #e6d6b4;
+  --accent: #7c3a24;
+  --accent-strong: #5f2618;
+  --warm: #9d552d;
+  --green: #315f50;
+  --shadow: 0 22px 56px rgba(57, 35, 20, 0.24);
+  font-family: "Georgia", "Times New Roman", serif;
 }
 
 * {
@@ -19,7 +20,11 @@
 body {
   margin: 0;
   color: var(--ink);
-  background: var(--paper);
+  background:
+    radial-gradient(circle at 18% 16%, rgba(251, 245, 230, 0.62), transparent 28%),
+    linear-gradient(135deg, rgba(124, 58, 36, 0.08) 0 25%, transparent 25% 50%, rgba(124, 58, 36, 0.06) 50% 75%, transparent 75%),
+    var(--paper);
+  background-size: auto, 28px 28px, auto;
   overflow: hidden;
 }
 
@@ -29,49 +34,92 @@ input {
 }
 
 .app-shell {
+  position: relative;
   height: 100vh;
-  display: grid;
-  grid-template-columns: clamp(248px, 19vw, 286px) minmax(0, 1fr) clamp(286px, 21vw, 320px);
   overflow: hidden;
-  transition: grid-template-columns 180ms ease;
 }
 
-.people-collapsed .app-shell {
-  grid-template-columns: 0 minmax(0, 1fr) clamp(286px, 21vw, 320px);
+.app-shell::before {
+  content: "The Family Record";
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 0;
+  color: rgba(124, 58, 36, 0.055);
+  font-size: clamp(4rem, 10vw, 9rem);
+  font-weight: 900;
+  line-height: 0.9;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  pointer-events: none;
 }
 
-.profile-collapsed .app-shell {
-  grid-template-columns: clamp(248px, 19vw, 286px) minmax(0, 1fr) 0;
-}
-
+.people-collapsed .app-shell,
+.profile-collapsed .app-shell,
 .people-collapsed.profile-collapsed .app-shell {
-  grid-template-columns: 0 minmax(0, 1fr) 0;
+  grid-template-columns: none;
 }
 
 .sidebar,
 .details {
-  min-width: 0;
-  height: 100vh;
+  position: fixed;
+  z-index: 5;
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100vh - 112px);
   padding: 18px;
-  background: #eef3f0;
-  border-right: 1px solid var(--line);
+  border: 3px solid var(--accent);
+  border-radius: 18px;
+  background: #fbf5e6;
+  box-shadow: var(--shadow);
+  overflow: hidden;
   overflow-y: auto;
-  transition: opacity 160ms ease, transform 180ms ease, padding 180ms ease;
+  transition: opacity 160ms ease, transform 180ms ease;
+}
+
+.sidebar {
+  left: 18px;
+  top: 96px;
+}
+
+.details {
+  right: 18px;
+  top: 96px;
+  width: min(430px, calc(100vw - 32px));
+}
+
+.details::before,
+.sidebar::before {
+  content: "";
+  position: sticky;
+  top: -18px;
+  display: block;
+  height: 8px;
+  margin: -18px -18px 14px;
+  background: var(--accent);
+}
+
+.window-close {
+  position: sticky;
+  top: -10px;
+  z-index: 2;
+  float: right;
+  height: 32px;
+  margin: -4px 0 10px 10px;
+  border: 1px solid rgba(124, 58, 36, 0.36);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #ead2b3;
+  color: var(--accent-strong);
+  font-weight: 900;
+  cursor: pointer;
 }
 
 .people-collapsed .sidebar,
 .profile-collapsed .details {
-  padding-inline: 0;
-  border: 0;
   opacity: 0;
-  overflow: hidden;
+  transform: translateY(8px) scale(0.98);
   pointer-events: none;
-}
-
-.details {
-  border-right: 0;
-  border-left: 1px solid var(--line);
-  background: #f7f5f0;
 }
 
 .brand-block {
@@ -82,7 +130,7 @@ input {
   margin: 0 0 6px;
   color: var(--warm);
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -101,7 +149,7 @@ h2 {
 }
 
 h1 {
-  font-size: 1.76rem;
+  font-size: 1.9rem;
 }
 
 h2 {
@@ -125,11 +173,11 @@ h3 {
 .search input {
   width: 100%;
   height: 42px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(124, 58, 36, 0.34);
   border-radius: 8px;
   padding: 0 12px;
   color: var(--ink);
-  background: #fff;
+  background: #fffaf0;
 }
 
 .toolbar {
@@ -150,9 +198,9 @@ h3 {
 .toolbar button,
 .person-row,
 .relation-item {
-  border: 1px solid var(--line);
+  border: 1px solid rgba(124, 58, 36, 0.28);
   border-radius: 8px;
-  background: #fff;
+  background: #fffaf0;
   color: var(--ink);
   cursor: pointer;
 }
@@ -165,16 +213,16 @@ h3 {
 
 .toolbar button.active {
   border-color: var(--accent);
-  background: #dff0ed;
+  background: #ead2b3;
   color: var(--accent-strong);
 }
 
 .data-status {
   margin: 0 0 14px;
   padding: 10px 12px;
-  border: 1px solid #c9d9d6;
+  border: 1px solid rgba(49, 95, 80, 0.34);
   border-radius: 8px;
-  background: #f8fbfa;
+  background: rgba(255, 250, 240, 0.8);
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 700;
@@ -183,27 +231,27 @@ h3 {
 
 .data-status::before {
   content: "Local only: ";
-  color: var(--accent-strong);
+  color: var(--green);
   font-weight: 900;
 }
 
 .data-status.success {
-  border-color: #93c5aa;
-  background: #eef8f2;
+  border-color: rgba(49, 95, 80, 0.52);
+  background: rgba(230, 244, 233, 0.72);
 }
 
 .data-status.error {
-  border-color: #d99b8b;
-  background: #fff3ef;
-  color: #8a3d2a;
+  border-color: rgba(124, 58, 36, 0.55);
+  background: rgba(255, 238, 226, 0.85);
+  color: var(--accent-strong);
 }
 
 .panel {
   padding: 15px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-  box-shadow: var(--shadow);
+  border: 1px solid rgba(124, 58, 36, 0.24);
+  border-radius: 12px;
+  background: rgba(255, 250, 240, 0.7);
+  box-shadow: none;
 }
 
 .panel + .panel {
@@ -239,7 +287,7 @@ dd {
 
 .person-row.active {
   border-color: var(--accent);
-  background: #e5f1ef;
+  background: #ead2b3;
 }
 
 .profile-actions {
@@ -251,10 +299,10 @@ dd {
 
 .profile-actions button {
   min-height: 36px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(124, 58, 36, 0.32);
   border-radius: 8px;
   padding: 0 12px;
-  background: #fff;
+  background: #fffaf0;
   color: var(--ink);
   font-weight: 800;
   cursor: pointer;
@@ -262,26 +310,33 @@ dd {
 
 .profile-actions button:first-child {
   border-color: var(--accent);
-  background: #e5f1ef;
+  background: #ead2b3;
   color: var(--accent-strong);
 }
 
 .tree-area {
-  min-width: 0;
-  min-height: 0;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
 }
 
 .tree-header {
-  min-height: 74px;
+  z-index: 3;
+  min-height: 76px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 14px 18px;
-  background: #fff;
-  border-bottom: 1px solid var(--line);
+  margin: 16px;
+  padding: 12px 16px;
+  border: 3px solid var(--accent);
+  border-radius: 18px;
+  background: rgba(251, 245, 230, 0.94);
+  box-shadow: 0 14px 34px rgba(57, 35, 20, 0.18);
 }
 
 .tree-header > div:first-child {
@@ -311,7 +366,7 @@ dd {
 
 .tree-count {
   padding: 7px 10px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(124, 58, 36, 0.32);
   border-radius: 999px;
   color: var(--muted);
   font-size: 0.82rem;
@@ -337,10 +392,10 @@ dd {
 
 .view-actions button {
   height: 34px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(124, 58, 36, 0.32);
   border-radius: 8px;
   padding: 0 10px;
-  background: #fff;
+  background: #fffaf0;
   color: var(--ink);
   font-weight: 800;
   cursor: pointer;
@@ -348,8 +403,8 @@ dd {
 }
 
 .view-actions button[aria-pressed="true"] {
-  border-color: #b9cbc8;
-  background: #eef6f4;
+  border-color: var(--accent);
+  background: #ead2b3;
   color: var(--accent-strong);
 }
 
@@ -363,11 +418,11 @@ dd {
   width: 14px;
   height: 8px;
   border-radius: 999px;
-  background: var(--accent);
+  background: var(--green);
 }
 
 .legend-swatch.collateral {
-  background: #b7c1c3;
+  background: #a98f76;
   opacity: 0.6;
 }
 
@@ -377,10 +432,11 @@ dd {
   overflow: hidden;
   cursor: grab;
   background:
-    linear-gradient(rgba(47, 111, 115, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(47, 111, 115, 0.08) 1px, transparent 1px),
-    #fbfaf6;
-  background-size: 32px 32px;
+    linear-gradient(rgba(124, 58, 36, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124, 58, 36, 0.07) 1px, transparent 1px),
+    radial-gradient(circle at center, rgba(251, 245, 230, 0.82), rgba(230, 214, 180, 0.64)),
+    var(--paper);
+  background-size: 34px 34px, 34px 34px, auto, auto;
 }
 
 .tree-viewport:active {
@@ -396,7 +452,7 @@ dd {
 
 .tree-link {
   fill: none;
-  stroke: #9eb1b2;
+  stroke: rgba(49, 95, 80, 0.72);
   stroke-width: 2.5;
 }
 
@@ -405,18 +461,18 @@ dd {
 }
 
 .family-unit {
-  fill: rgba(255, 255, 255, 0.58);
-  stroke: rgba(47, 111, 115, 0.22);
+  fill: rgba(251, 245, 230, 0.42);
+  stroke: rgba(124, 58, 36, 0.2);
   stroke-width: 1.4;
 }
 
 .family-unit.dimmed {
-  fill: rgba(240, 242, 240, 0.5);
-  stroke: rgba(98, 113, 127, 0.18);
+  fill: rgba(241, 226, 196, 0.36);
+  stroke: rgba(117, 95, 76, 0.16);
 }
 
 .family-label {
-  fill: #617073;
+  fill: rgba(124, 58, 36, 0.68);
   font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
@@ -435,19 +491,19 @@ dd {
 }
 
 .tree-node.dimmed {
-  opacity: 0.42;
+  opacity: 0.34;
 }
 
 .tree-node rect {
-  fill: #fff;
-  stroke: #b8c9c7;
-  stroke-width: 1.5;
-  filter: drop-shadow(0 8px 14px rgba(31, 41, 51, 0.14));
+  fill: #fffaf0;
+  stroke: rgba(124, 58, 36, 0.42);
+  stroke-width: 1.6;
+  filter: drop-shadow(0 8px 13px rgba(57, 35, 20, 0.18));
 }
 
 .tree-node.selected rect {
-  fill: #dff0ed;
-  stroke: var(--accent-strong);
+  fill: #ead2b3;
+  stroke: var(--accent);
   stroke-width: 2.5;
 }
 
@@ -457,7 +513,7 @@ dd {
 }
 
 .tree-node.root.selected rect {
-  fill: #e3f3ef;
+  fill: #ead2b3;
   stroke: var(--warm);
 }
 
@@ -523,50 +579,24 @@ dd {
 
 @media (max-width: 980px) {
   body {
-    overflow: auto;
+    overflow: hidden;
   }
 
   .app-shell {
-    height: auto;
-    min-height: 100vh;
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "sidebar"
-      "tree"
-      "details";
-    overflow: visible;
-  }
-
-  .people-collapsed .app-shell,
-  .profile-collapsed .app-shell,
-  .people-collapsed.profile-collapsed .app-shell {
-    grid-template-columns: 1fr;
+    height: 100vh;
+    min-height: 0;
   }
 
   .sidebar,
   .details {
     display: block;
-    height: auto;
-    max-height: none;
-    border: 0;
-    overflow: visible;
-  }
-
-  .sidebar {
-    grid-area: sidebar;
-  }
-
-  .tree-area {
-    grid-area: tree;
-  }
-
-  .details {
-    grid-area: details;
-  }
-
-  .people-collapsed .sidebar,
-  .profile-collapsed .details {
-    display: none;
+    left: 12px;
+    right: 12px;
+    top: 116px;
+    width: auto;
+    max-height: calc(100vh - 132px);
+    border-width: 2px;
+    overflow-y: auto;
   }
 
   .person-list {
@@ -576,13 +606,15 @@ dd {
   }
 
   .tree-area {
-    min-height: 620px;
+    min-height: 0;
   }
 
   .tree-header {
     align-items: flex-start;
     gap: 12px;
-    padding: 16px;
+    margin: 10px;
+    padding: 12px;
+    border-width: 2px;
   }
 
   .tree-tools {

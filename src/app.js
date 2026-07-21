@@ -32,6 +32,7 @@ const els = {
   homePerson: document.querySelector("#home-person"),
   togglePeople: document.querySelector("#toggle-people"),
   toggleProfile: document.querySelector("#toggle-profile"),
+  closeProfile: document.querySelector("#close-profile"),
 };
 
 async function init() {
@@ -72,10 +73,14 @@ async function init() {
     syncPanelState();
     fitTreeAfterLayout();
   });
+  els.closeProfile.addEventListener("click", () => {
+    state.profileCollapsed = true;
+    syncPanelState();
+  });
   els.viewport.addEventListener("wheel", onZoom, { passive: false });
   enableDrag();
 
-  state.profileCollapsed = window.matchMedia("(max-width: 1500px)").matches;
+  state.profileCollapsed = true;
   syncPanelState();
   render();
   fitTreeAfterLayout();
@@ -165,7 +170,7 @@ function renderPeople() {
         <small>${formatYears(person)}</small>
       `;
       button.addEventListener("click", () => {
-        selectPerson(person.id, state.collapseCollateral);
+        selectPerson(person.id, state.collapseCollateral, true);
       });
       return button;
     }),
@@ -273,11 +278,11 @@ function renderTree() {
     group.addEventListener("pointerdown", (event) => {
       event.stopPropagation();
     });
-    group.addEventListener("click", () => selectPerson(node.person.id, true));
+    group.addEventListener("click", () => selectPerson(node.person.id, true, true));
     group.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        selectPerson(node.person.id, true);
+        selectPerson(node.person.id, true, true);
       }
     });
 
@@ -684,8 +689,9 @@ function relationshipIds(id, index) {
   return [...(relations?.parents || []), ...(relations?.spouses || []), ...(relations?.children || [])];
 }
 
-function selectPerson(id, reroot = true) {
+function selectPerson(id, reroot = true, openProfile = true) {
   state.selectedId = id;
+  if (openProfile) state.profileCollapsed = false;
   if (reroot) {
     state.rootId = id;
     fitTree();
@@ -814,7 +820,7 @@ function linkGroup(label, ids = []) {
       button.className = "relation-item";
       button.textContent = person?.name || id;
       button.addEventListener("click", () => {
-        selectPerson(id, state.collapseCollateral);
+        selectPerson(id, state.collapseCollateral, true);
       });
       return button;
     }),
