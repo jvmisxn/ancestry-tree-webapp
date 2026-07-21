@@ -185,7 +185,7 @@ function renderTree() {
 
   const index = relationshipIndex();
   const directIds = directRelatives(root.id, index);
-  const pyramidIds = directPyramidIds(root.id, index);
+  const pyramidIds = directRelatives(root.id, index);
   const visibleIds = state.collapseCollateral ? pyramidIds : null;
   const graph = buildBranch(root.id, index, visibleIds);
   const nodes = layoutNodes(graph, index);
@@ -194,12 +194,12 @@ function renderTree() {
   const width = Math.max(els.viewport.clientWidth, 900);
   const height = Math.max(els.viewport.clientHeight, 640);
   const directCount = nodes.filter((node) => directIds.has(node.person.id)).length;
-  const contextCount = nodes.length - directCount;
+  const collateralCount = nodes.length - directCount;
 
   els.title.textContent = root.name;
   els.count.textContent = state.collapseCollateral
-    ? `${directCount} direct, ${contextCount} context`
-    : `${directCount} direct, ${contextCount} collateral`;
+    ? `${directCount} direct`
+    : `${directCount} direct, ${collateralCount} collateral`;
   els.focusDirect.textContent = state.collapseCollateral ? "Show collateral" : "Hide collateral";
   els.focusDirect.title = state.collapseCollateral
     ? "Show extended collateral relatives around this family"
@@ -283,26 +283,6 @@ function connectedRelatives(rootId, index) {
 
 function directRelatives(rootId, index) {
   return new Set([rootId, ...walkLine(rootId, "parents", index), ...walkLine(rootId, "children", index)]);
-}
-
-function directPyramidIds(rootId, index) {
-  const ids = directRelatives(rootId, index);
-  const rootRelations = index.get(rootId);
-
-  for (const spouseId of rootRelations?.spouses || []) ids.add(spouseId);
-
-  for (const parentId of rootRelations?.parents || []) {
-    for (const siblingId of index.get(parentId)?.children || []) ids.add(siblingId);
-  }
-
-  for (const id of [...ids]) {
-    for (const spouseId of index.get(id)?.spouses || []) {
-      const sharesChild = [...(index.get(id)?.children || [])].some((childId) => ids.has(childId));
-      if (id === rootId || sharesChild) ids.add(spouseId);
-    }
-  }
-
-  return ids;
 }
 
 function walkLine(rootId, key, index) {
@@ -661,7 +641,7 @@ function selectPerson(id, reroot = true) {
 function fitTree() {
   const index = relationshipIndex();
   const root = personById(state.rootId);
-  const visibleIds = root && state.collapseCollateral ? directPyramidIds(root.id, index) : null;
+  const visibleIds = root && state.collapseCollateral ? directRelatives(root.id, index) : null;
   const graph = root ? buildBranch(root.id, index, visibleIds) : [];
   const nodes = layoutNodes(graph, index);
   const bounds = treeBounds(nodes);
