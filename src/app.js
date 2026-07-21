@@ -2,7 +2,7 @@ const state = {
   data: null,
   selectedId: null,
   rootId: null,
-  focusDirect: false,
+  focusDirect: true,
   scale: 1,
   offsetX: 0,
   offsetY: 0,
@@ -164,7 +164,7 @@ function renderTree() {
   const graph = buildBranch(root.id, index);
   const directIds = directRelatives(root.id, index);
   const nodes = layoutNodes(graph, index);
-  const links = layoutLinks(nodes, index);
+  const links = layoutLinks(nodes, index, directIds);
   const width = Math.max(els.viewport.clientWidth, 900);
   const height = Math.max(els.viewport.clientHeight, 640);
 
@@ -179,10 +179,9 @@ function renderTree() {
   els.svg.append(g);
 
   for (const link of links) {
-    const isCollateralLink = state.focusDirect && (!directIds.has(link.parentId) || !directIds.has(link.childId));
     g.append(svgEl("path", {
-      class: `tree-link ${isCollateralLink ? "dimmed" : ""}`,
-      d: `M ${link.x1} ${link.y1} C ${link.x1} ${(link.y1 + link.y2) / 2}, ${link.x2} ${(link.y1 + link.y2) / 2}, ${link.x2} ${link.y2}`,
+      class: `tree-link ${link.kind || ""} ${state.focusDirect && !link.direct ? "dimmed" : ""}`,
+      d: link.d,
     }));
   }
 
@@ -249,12 +248,15 @@ function walkLine(rootId, key, index) {
 }
 
 function layoutNodes(branch, index) {
-  const maxColumns = 7;
-  const columnGap = 230;
-  const laneGap = 96;
+  const nodeGap = 214;
+  const groupGap = 84;
+  const laneGap = 76;
   const generationGap = 124;
+  const maxGroupColumns = 6;
   const root = personById(state.rootId);
   const rows = new Map();
+  const directOrder = directAncestorOrder(root.id, index);
+
   for (const person of branch) {
     const generation = generationOffset(root.id, person.id, index);
     if (!rows.has(generation)) rows.set(generation, []);
@@ -264,46 +266,222 @@ function layoutNodes(branch, index) {
   const sortedRows = [...rows.entries()].sort(([a], [b]) => a - b);
   const nodes = [];
   let y = 120;
-  for (const [, rowPeople] of sortedRows) {
-    const lanes = chunk(rowPeople, maxColumns);
-    lanes.forEach((lane, laneIndex) => {
-      const laneWidth = (lane.length - 1) * columnGap;
-      lane.forEach((person, index) => {
-        nodes.push({ person, x: 450 - laneWidth / 2 + index * columnGap, y: y + laneIndex * laneGap });
+  for (const [generation, rowPeople] of sortedRows) {
+    const groups = familyGroups(rowPeople, index, directOrder);
+    const widths = groups.map((group) => Math.min(maxGroupColumns, Math.max(1, group.people.length)) * nodeGap);
+    const maxRows = Math.max(...groups.map((group) => Math.ceil(group.people.length / maxGroupColumns)), 1);
+    const rowWidth = widths.reduce((total, width) => total + width, 0) + Math.max(0, groups.length - 1) * groupGap;
+    let x = 450 - rowWidth / 2;
+
+    groups.forEach((group, groupIndex) => {
+      const groupWidth = widths[groupIndex];
+      group.people.forEach((person, index) => {
+        const lane = Math.floor(index / maxGroupColumns);
+        const column = index % maxGroupColumns;
+        const laneLength = Math.min(maxGroupColumns, group.people.length - lane * maxGroupColumns);
+        const laneWidth = laneLength * nodeGap;
+        nodes.push({
+          person,
+          x: x + (groupWidth - laneWidth) / 2 + nodeGap / 2 + column * nodeGap,
+          y: y + lane * laneGap,
+          familyKey: group.key,
+        });
       });
+      x += groupWidth + groupGap;
     });
-    y += lanes.length * laneGap + generationGap;
+    y += generationGap + (maxRows - 1) * laneGap;
   }
   return nodes;
 }
 
-function chunk(items, size) {
-  const chunks = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
+function familyGroups(rowPeople, index, directOrder) {
+  const generation = generationOffset(state.rootId, rowPeople[0].id, index);
+  const rowOrder = directOrder.get(generation) || new Map();
+  const peopleById = new Map(rowPeople.map((person) => [person.id, person]));
+  const groupMap = new Map();
+
+  for (const person of rowPeople) {
+    const parents = [...(index.get(person.id)?.parents || [])];
+    const key = parents.length ? `parents:${parents.join("+")}` : familyFallbackKey(person, rowPeople, index);
+    if (!groupMap.has(key)) groupMap.set(key, { key, people: [], parents });
+    groupMap.get(key).people.push(person);
   }
-  return chunks;
+
+  const groups = [...groupMap.values()];
+  for (const group of groups) {
+    const childOrder = orderedChildren(group.parents, index).filter((id) => peopleById.has(id));
+    group.people.sort((a, b) => {
+      const aDirect = rowOrder.has(a.id);
+      const bDirect = rowOrder.has(b.id);
+      const aChildOrder = childOrder.indexOf(a.id);
+      const bChildOrder = childOrder.indexOf(b.id);
+      const aRank = aChildOrder === -1 ? Number.MAX_SAFE_INTEGER : aChildOrder;
+      const bRank = bChildOrder === -1 ? Number.MAX_SAFE_INTEGER : bChildOrder;
+
+      if (aDirect || bDirect) {
+        return centeredFamilyRank(a.id, childOrder, rowOrder) - centeredFamilyRank(b.id, childOrder, rowOrder);
+      }
+      if (aRank !== bRank) return aRank - bRank;
+      return a.name.localeCompare(b.name);
+    });
+    group.anchor = groupAnchor(group, index, directOrder, generation);
+  }
+
+  return groups.sort((a, b) => a.anchor - b.anchor || a.key.localeCompare(b.key));
 }
 
-function layoutLinks(nodes, index) {
+function familyFallbackKey(person, rowPeople, index) {
+  const spouse = [...(index.get(person.id)?.spouses || [])].find((id) => rowPeople.some((candidate) => candidate.id === id));
+  if (!spouse) return `single:${person.id}`;
+  return `spouses:${[person.id, spouse].sort().join("+")}`;
+}
+
+function orderedChildren(parentIds, index) {
+  const seen = new Set();
+  const children = [];
+  for (const parentId of parentIds) {
+    for (const childId of index.get(parentId)?.children || []) {
+      if (!seen.has(childId)) {
+        seen.add(childId);
+        children.push(childId);
+      }
+    }
+  }
+  return children;
+}
+
+function centeredFamilyRank(id, childOrder, rowOrder) {
+  const directChildren = childOrder.filter((childId) => rowOrder.has(childId));
+  const directId = directChildren[0];
+  const directIndex = directId ? childOrder.indexOf(directId) : -1;
+  const ownIndex = childOrder.indexOf(id);
+  if (ownIndex === -1 || directIndex === -1) return rowOrder.get(id) ?? Number.MAX_SAFE_INTEGER;
+  if (id === directId) return 0;
+  const side = ownIndex < directIndex ? -1 : 1;
+  const distance = Math.abs(ownIndex - directIndex);
+  return side * Math.ceil(distance / 2) + (side > 0 ? 0.25 : -0.25);
+}
+
+function groupAnchor(group, index, directOrder, generation) {
+  const rowOrder = directOrder.get(generation) || new Map();
+  const ownOrders = group.people.map((person) => rowOrder.get(person.id)).filter((order) => order !== undefined);
+  if (ownOrders.length) return Math.min(...ownOrders);
+
+  const directRows = [...directOrder.values()];
+  const parentOrders = group.parents
+    .map((id) => directRows.map((row) => row.get(id)).find((order) => order !== undefined))
+    .filter((order) => order !== undefined);
+  if (parentOrders.length) return parentOrders.reduce((total, order) => total + order, 0) / parentOrders.length;
+
+  const spouseOrders = group.people
+    .flatMap((person) => [...(index.get(person.id)?.spouses || [])])
+    .map((id) => rowOrder.get(id))
+    .filter((order) => order !== undefined);
+  if (spouseOrders.length) return Math.min(...spouseOrders) + 0.35;
+
+  return Math.min(...group.people.map((person) => weightedDistance(state.rootId, person.id, index) ?? 999));
+}
+
+function directAncestorOrder(rootId, index) {
+  const orderByGeneration = new Map([[0, new Map([[rootId, 0]])]]);
+  let current = [rootId];
+  let generation = -1;
+  const seen = new Set([rootId]);
+
+  while (current.length) {
+    const parents = [];
+    for (const id of current) {
+      for (const parentId of index.get(id)?.parents || []) {
+        if (!seen.has(parentId)) {
+          seen.add(parentId);
+          parents.push(parentId);
+        }
+      }
+    }
+    if (!parents.length) break;
+    orderByGeneration.set(generation, new Map(parents.map((id, order) => [id, order])));
+    current = parents;
+    generation -= 1;
+  }
+
+  current = [rootId];
+  generation = 1;
+  while (current.length) {
+    const children = [];
+    for (const id of current) {
+      for (const childId of index.get(id)?.children || []) {
+        if (!seen.has(childId)) {
+          seen.add(childId);
+          children.push(childId);
+        }
+      }
+    }
+    if (!children.length) break;
+    orderByGeneration.set(generation, new Map(children.map((id, order) => [id, order])));
+    current = children;
+    generation += 1;
+  }
+
+  return orderByGeneration;
+}
+
+function layoutLinks(nodes, index, directIds) {
   const nodeById = new Map(nodes.map((node) => [node.person.id, node]));
   const links = [];
-  const seen = new Set();
-  for (const node of nodes) {
-    for (const childId of index.get(node.person.id)?.children || []) {
-      const child = nodeById.get(childId);
-      const key = `${node.person.id}:${childId}`;
-      if (child && !seen.has(key)) {
-        seen.add(key);
+  const seenFamilies = new Set();
+  const seenSpouses = new Set();
+
+  for (const childNode of nodes) {
+    const parentIds = [...(index.get(childNode.person.id)?.parents || [])].filter((id) => nodeById.has(id));
+    if (!parentIds.length) continue;
+    const key = `${parentIds.join("+")}:${childNode.person.id}`;
+    if (seenFamilies.has(key)) continue;
+    seenFamilies.add(key);
+
+    const parents = parentIds.map((id) => nodeById.get(id));
+    const busY = Math.max(...parents.map((parent) => parent.y)) + 58;
+    const parentCenter = parents.reduce((total, parent) => total + parent.x, 0) / parents.length;
+    const direct = directIds.has(childNode.person.id) && parentIds.some((id) => directIds.has(id));
+
+    if (parents.length > 1) {
+      const [left, right] = [...parents].sort((a, b) => a.x - b.x);
+      const spouseKey = [left.person.id, right.person.id].sort().join("+");
+      if (!seenSpouses.has(spouseKey)) {
+        seenSpouses.add(spouseKey);
         links.push({
-          parentId: node.person.id,
-          childId,
-          x1: node.x,
-          y1: node.y + 30,
-          x2: child.x,
-          y2: child.y - 30,
+          kind: "spouse-link",
+          direct: directIds.has(left.person.id) && directIds.has(right.person.id),
+          d: `M ${left.x + 96} ${left.y} L ${right.x - 96} ${right.y}`,
         });
       }
+      links.push({
+        kind: "family-link",
+        direct,
+        d: `M ${parentCenter} ${parents[0].y + 30} L ${parentCenter} ${busY} L ${childNode.x} ${busY} L ${childNode.x} ${childNode.y - 30}`,
+      });
+    } else {
+      const parent = parents[0];
+      links.push({
+        kind: "family-link",
+        direct,
+        d: `M ${parent.x} ${parent.y + 30} C ${parent.x} ${(parent.y + childNode.y) / 2}, ${childNode.x} ${(parent.y + childNode.y) / 2}, ${childNode.x} ${childNode.y - 30}`,
+      });
+    }
+  }
+
+  for (const node of nodes) {
+    for (const spouseId of index.get(node.person.id)?.spouses || []) {
+      const spouse = nodeById.get(spouseId);
+      if (!spouse || spouse.y !== node.y) continue;
+      const spouseKey = [node.person.id, spouseId].sort().join("+");
+      if (seenSpouses.has(spouseKey)) continue;
+      seenSpouses.add(spouseKey);
+      const [left, right] = [node, spouse].sort((a, b) => a.x - b.x);
+      links.push({
+        kind: "spouse-link",
+        direct: directIds.has(left.person.id) && directIds.has(right.person.id),
+        d: `M ${left.x + 96} ${left.y} L ${right.x - 96} ${right.y}`,
+      });
     }
   }
   return links;
