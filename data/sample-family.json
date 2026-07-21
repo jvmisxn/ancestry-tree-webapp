@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "title": "Family Tree",
+    "defaultPersonId": "sample-root",
+    "updated": "2026-07-20",
+    "notes": "Sample data for the public webapp. Load a private family.json file to view real data."
+  },
+  "people": [
+    {
+      "id": "sample-root",
+      "name": "Sample Person",
+      "birth": {
+        "date": "1980",
+        "place": ""
+      },
+      "death": null,
+      "parents": ["sample-father", "sample-mother"],
+      "spouses": [],
+      "children": [],
+      "aliases": [],
+      "tags": ["sample"],
+      "notes": "Use the Load button to open a private family.json file from the data repo.",
+      "sources": []
+    },
+    {
+      "id": "sample-father",
+      "name": "Father Side",
+      "birth": null,
+      "death": null,
+      "parents": [],
+      "spouses": ["sample-mother"],
+      "children": ["sample-root"],
+      "aliases": [],
+      "tags": ["sample"],
+      "notes": "",
+      "sources": []
+    },
+    {
+      "id": "sample-mother",
+      "name": "Mother Side",
+      "birth": null,
+      "death": null,
+      "parents": [],
+      "spouses": ["sample-father"],
+      "children": ["sample-root"],
+      "aliases": [],
+      "tags": ["sample"],
+      "notes": "",
+      "sources": []
+    }
+  ]
+}

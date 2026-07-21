@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Family Tree</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Family tree controls">
+        <div class="brand-block">
+          <p class="eyebrow">Ancestry</p>
+          <h1>Family Tree</h1>
+        </div>
+
+        <label class="search">
+          <span>Find a person</span>
+          <input id="person-search" type="search" placeholder="Search names, places, notes" autocomplete="off" />
+        </label>
+
+        <div class="toolbar" aria-label="Tree actions">
+          <button id="load-json" type="button" title="Load private family data">Load</button>
+          <input id="import-json" class="file-input" type="file" accept="application/json,.json" />
+          <button id="fit-tree" type="button" title="Fit tree to view">Fit</button>
+          <button id="export-json" type="button" title="Download family data">Export</button>
+        </div>
+
+        <section class="panel">
+          <h2>People</h2>
+          <div id="person-list" class="person-list"></div>
+        </section>
+      </aside>
+
+      <section class="tree-area" aria-label="Family tree visualization">
+        <div class="tree-header">
+          <div>
+            <p class="eyebrow">Selected Branch</p>
+            <h2 id="tree-title">Loading family tree...</h2>
+          </div>
+          <div id="tree-count" class="tree-count"></div>
+        </div>
+        <div id="tree-viewport" class="tree-viewport">
+          <svg id="tree-svg" role="img" aria-label="Interactive family tree"></svg>
+        </div>
+      </section>
+
+      <aside class="details" aria-label="Selected person details">
+        <section class="panel person-card">
+          <p class="eyebrow">Profile</p>
+          <h2 id="detail-name">Select someone</h2>
+          <dl id="detail-facts"></dl>
+          <div id="detail-notes" class="notes"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Relationships</h2>
+          <div id="detail-relations" class="relation-list"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Sources</h2>
+          <div id="detail-sources" class="source-list"></div>
+        </section>
+      </aside>
+    </main>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
