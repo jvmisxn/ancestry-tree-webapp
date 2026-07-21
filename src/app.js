@@ -41,6 +41,7 @@ async function init() {
   els.importJson.addEventListener("change", importData);
   els.focusDirect.addEventListener("click", () => {
     state.collapseCollateral = !state.collapseCollateral;
+    if (state.collapseCollateral) state.rootId = state.selectedId;
     fitTree();
     render();
   });
@@ -137,8 +138,7 @@ function renderPeople() {
         <small>${formatYears(person)}</small>
       `;
       button.addEventListener("click", () => {
-        state.selectedId = person.id;
-        render();
+        selectPerson(person.id, state.collapseCollateral);
       });
       return button;
     }),
@@ -184,7 +184,7 @@ function renderTree() {
   if (!root) return;
 
   const index = relationshipIndex();
-  const directIds = directRelatives(root.id, index);
+  const directIds = directRelatives(state.selectedId, index);
   const pyramidIds = directRelatives(root.id, index);
   const visibleIds = state.collapseCollateral ? pyramidIds : null;
   const graph = buildBranch(root.id, index, visibleIds);
@@ -749,8 +749,7 @@ function linkGroup(label, ids = []) {
       button.className = "relation-item";
       button.textContent = person?.name || id;
       button.addEventListener("click", () => {
-        state.selectedId = id;
-        render();
+        selectPerson(id, state.collapseCollateral);
       });
       return button;
     }),
