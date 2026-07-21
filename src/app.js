@@ -179,8 +179,9 @@ function renderTree() {
   els.svg.append(g);
 
   for (const link of links) {
+    const isCollateralLink = state.focusDirect && (!directIds.has(link.parentId) || !directIds.has(link.childId));
     g.append(svgEl("path", {
-      class: "tree-link",
+      class: `tree-link ${isCollateralLink ? "dimmed" : ""}`,
       d: `M ${link.x1} ${link.y1} C ${link.x1} ${(link.y1 + link.y2) / 2}, ${link.x2} ${(link.y1 + link.y2) / 2}, ${link.x2} ${link.y2}`,
     }));
   }
@@ -294,7 +295,14 @@ function layoutLinks(nodes, index) {
       const key = `${node.person.id}:${childId}`;
       if (child && !seen.has(key)) {
         seen.add(key);
-        links.push({ x1: node.x, y1: node.y + 30, x2: child.x, y2: child.y - 30 });
+        links.push({
+          parentId: node.person.id,
+          childId,
+          x1: node.x,
+          y1: node.y + 30,
+          x2: child.x,
+          y2: child.y - 30,
+        });
       }
     }
   }

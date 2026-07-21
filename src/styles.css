@@ -20,6 +20,7 @@ body {
   margin: 0;
   color: var(--ink);
   background: var(--paper);
+  overflow: hidden;
 }
 
 button,
@@ -28,14 +29,16 @@ input {
 }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
   display: grid;
   grid-template-columns: 300px minmax(460px, 1fr) 340px;
+  overflow: hidden;
 }
 
 .sidebar,
 .details {
   min-width: 0;
+  height: 100vh;
   padding: 20px;
   background: #eef3f0;
   border-right: 1px solid var(--line);
@@ -189,6 +192,7 @@ dd {
 
 .tree-area {
   min-width: 0;
+  min-height: 0;
   display: grid;
   grid-template-rows: auto 1fr;
 }
@@ -241,6 +245,10 @@ dd {
   fill: none;
   stroke: #9eb1b2;
   stroke-width: 2.5;
+}
+
+.tree-link.dimmed {
+  opacity: 0.18;
 }
 
 .tree-node {
