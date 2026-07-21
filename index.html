@@ -22,8 +22,6 @@
         <div class="toolbar" aria-label="Tree actions">
           <button id="load-json" type="button" title="Load private family data">Load data</button>
           <input id="import-json" class="file-input" type="file" accept="application/json,.json" />
-          <button id="focus-direct" type="button" title="Hide extended collateral relatives and show the focused family pyramid">Hide collateral</button>
-          <button id="fit-tree" type="button" title="Fit tree to view">Fit view</button>
           <button id="export-json" type="button" title="Download family data">Export data</button>
         </div>
 
@@ -41,11 +39,19 @@
             <p class="eyebrow">Family Group</p>
             <h2 id="tree-title">Loading family tree...</h2>
           </div>
-          <div class="tree-summary">
-            <div id="tree-count" class="tree-count"></div>
-            <div class="legend" aria-label="Tree legend">
-              <span><i class="legend-swatch direct"></i>Direct line</span>
-              <span><i class="legend-swatch collateral"></i>Collateral</span>
+          <div class="tree-tools">
+            <div class="tree-summary">
+              <div id="tree-count" class="tree-count"></div>
+              <div class="legend" aria-label="Tree legend">
+                <span><i class="legend-swatch direct"></i>Direct line</span>
+                <span><i class="legend-swatch collateral"></i>Collateral</span>
+              </div>
+            </div>
+            <div class="view-actions" aria-label="View panels">
+              <button id="focus-direct" type="button" title="Hide extended collateral relatives and show the focused family pyramid">Hide collateral</button>
+              <button id="fit-tree" type="button" title="Fit tree to view">Fit view</button>
+              <button id="toggle-people" type="button" aria-pressed="false">People</button>
+              <button id="toggle-profile" type="button" aria-pressed="false">Profile</button>
             </div>
           </div>
         </div>

@@ -6,6 +6,8 @@ const state = {
   scale: 1,
   offsetX: 0,
   offsetY: 0,
+  peopleCollapsed: false,
+  profileCollapsed: false,
 };
 
 const els = {
@@ -28,6 +30,8 @@ const els = {
   dataStatus: document.querySelector("#data-status"),
   centerPerson: document.querySelector("#center-person"),
   homePerson: document.querySelector("#home-person"),
+  togglePeople: document.querySelector("#toggle-people"),
+  toggleProfile: document.querySelector("#toggle-profile"),
 };
 
 async function init() {
@@ -58,10 +62,23 @@ async function init() {
     fitTree();
     render();
   });
+  els.togglePeople.addEventListener("click", () => {
+    state.peopleCollapsed = !state.peopleCollapsed;
+    syncPanelState();
+    fitTreeAfterLayout();
+  });
+  els.toggleProfile.addEventListener("click", () => {
+    state.profileCollapsed = !state.profileCollapsed;
+    syncPanelState();
+    fitTreeAfterLayout();
+  });
   els.viewport.addEventListener("wheel", onZoom, { passive: false });
   enableDrag();
 
+  state.profileCollapsed = window.matchMedia("(max-width: 1500px)").matches;
+  syncPanelState();
   render();
+  fitTreeAfterLayout();
 }
 
 function people() {
@@ -98,10 +115,20 @@ function relationshipIndex() {
 }
 
 function render() {
+  syncPanelState();
   renderPeople();
   renderDetails();
   renderTree();
   renderDataStatus();
+}
+
+function syncPanelState() {
+  document.body.classList.toggle("people-collapsed", state.peopleCollapsed);
+  document.body.classList.toggle("profile-collapsed", state.profileCollapsed);
+  els.togglePeople.textContent = state.peopleCollapsed ? "Show people" : "Hide people";
+  els.toggleProfile.textContent = state.profileCollapsed ? "Show profile" : "Hide profile";
+  els.togglePeople.setAttribute("aria-pressed", String(!state.peopleCollapsed));
+  els.toggleProfile.setAttribute("aria-pressed", String(!state.profileCollapsed));
 }
 
 function renderDataStatus(message, tone = "neutral") {
@@ -191,8 +218,8 @@ function renderTree() {
   const nodes = layoutNodes(graph, index);
   const familyUnits = layoutFamilyUnits(nodes, index, directIds);
   const links = layoutLinks(nodes, index, directIds);
-  const width = Math.max(els.viewport.clientWidth, 900);
-  const height = Math.max(els.viewport.clientHeight, 640);
+  const width = Math.max(els.viewport.clientWidth, 360);
+  const height = Math.max(els.viewport.clientHeight, 520);
   const directCount = nodes.filter((node) => directIds.has(node.person.id)).length;
   const collateralCount = nodes.length - directCount;
 
@@ -210,6 +237,7 @@ function renderTree() {
   els.svg.replaceChildren();
 
   const g = svgEl("g", { transform: `translate(${state.offsetX} ${state.offsetY}) scale(${state.scale})` });
+  if (state.scale < 0.5) g.classList.add("overview-scale");
   els.svg.append(g);
 
   for (const unit of familyUnits) {
@@ -303,9 +331,9 @@ function walkLine(rootId, key, index) {
 
 function layoutNodes(branch, index) {
   const nodeGap = 214;
-  const groupGap = 84;
-  const laneGap = 76;
-  const generationGap = 124;
+  const groupGap = 120;
+  const laneGap = 86;
+  const generationGap = 148;
   const maxGroupColumns = 6;
   const root = personById(state.rootId);
   const rows = new Map();
@@ -672,14 +700,20 @@ function fitTree() {
   const graph = root ? buildBranch(root.id, index, visibleIds) : [];
   const nodes = layoutNodes(graph, index);
   const bounds = treeBounds(nodes);
-  const width = Math.max(els.viewport.clientWidth, 900);
-  const height = Math.max(els.viewport.clientHeight, 640);
+  const width = Math.max(els.viewport.clientWidth, 360);
+  const height = Math.max(els.viewport.clientHeight, 520);
   const scaleX = width / Math.max(bounds.width + 48, 1);
   const scaleY = height / Math.max(bounds.height + 48, 1);
-  state.scale = Math.min(1, Math.max(0.42, Math.min(scaleX, scaleY)));
+  state.scale = Math.min(1, Math.max(0.34, Math.min(scaleX, scaleY)));
   state.offsetX = (width - bounds.width * state.scale) / 2 - bounds.minX * state.scale;
   state.offsetY = (height - bounds.height * state.scale) / 2 - bounds.minY * state.scale;
   renderTree();
+}
+
+function fitTreeAfterLayout() {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(fitTree);
+  });
 }
 
 function onZoom(event) {
@@ -726,9 +760,13 @@ async function importData(event) {
     state.data = data;
     state.selectedId = data.meta.defaultPersonId || data.people[0]?.id;
     state.rootId = state.selectedId;
+    state.peopleCollapsed = true;
+    state.profileCollapsed = true;
+    syncPanelState();
     els.search.value = "";
     fitTree();
     render();
+    fitTreeAfterLayout();
     renderDataStatus(`Loaded ${data.people.length} people from ${file.name}. Nothing was uploaded.`, "success");
   } catch (error) {
     renderDataStatus(`Could not load ${file.name}: ${error.message}`, "error");

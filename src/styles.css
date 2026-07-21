@@ -31,18 +31,41 @@ input {
 .app-shell {
   height: 100vh;
   display: grid;
-  grid-template-columns: 300px minmax(460px, 1fr) 340px;
+  grid-template-columns: clamp(248px, 19vw, 286px) minmax(0, 1fr) clamp(286px, 21vw, 320px);
   overflow: hidden;
+  transition: grid-template-columns 180ms ease;
+}
+
+.people-collapsed .app-shell {
+  grid-template-columns: 0 minmax(0, 1fr) clamp(286px, 21vw, 320px);
+}
+
+.profile-collapsed .app-shell {
+  grid-template-columns: clamp(248px, 19vw, 286px) minmax(0, 1fr) 0;
+}
+
+.people-collapsed.profile-collapsed .app-shell {
+  grid-template-columns: 0 minmax(0, 1fr) 0;
 }
 
 .sidebar,
 .details {
   min-width: 0;
   height: 100vh;
-  padding: 20px;
+  padding: 18px;
   background: #eef3f0;
   border-right: 1px solid var(--line);
   overflow-y: auto;
+  transition: opacity 160ms ease, transform 180ms ease, padding 180ms ease;
+}
+
+.people-collapsed .sidebar,
+.profile-collapsed .details {
+  padding-inline: 0;
+  border: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .details {
@@ -52,7 +75,7 @@ input {
 }
 
 .brand-block {
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 
 .eyebrow {
@@ -78,7 +101,7 @@ h2 {
 }
 
 h1 {
-  font-size: 2rem;
+  font-size: 1.76rem;
 }
 
 h2 {
@@ -136,7 +159,7 @@ h3 {
 
 .toolbar button {
   height: 38px;
-  padding: 0 14px;
+  padding: 0 12px;
   font-weight: 800;
 }
 
@@ -147,7 +170,7 @@ h3 {
 }
 
 .data-status {
-  margin: 0 0 18px;
+  margin: 0 0 14px;
   padding: 10px 12px;
   border: 1px solid #c9d9d6;
   border-radius: 8px;
@@ -176,7 +199,7 @@ h3 {
 }
 
 .panel {
-  padding: 16px;
+  padding: 15px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -247,25 +270,43 @@ dd {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .tree-header {
-  min-height: 84px;
+  min-height: 74px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 18px 24px;
+  gap: 18px;
+  padding: 14px 18px;
   background: #fff;
   border-bottom: 1px solid var(--line);
+}
+
+.tree-header > div:first-child {
+  min-width: 0;
+}
+
+.tree-header h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-tools {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
 }
 
 .tree-summary {
   flex: 0 0 auto;
   display: grid;
   justify-items: end;
-  gap: 8px;
+  gap: 7px;
 }
 
 .tree-count {
@@ -285,6 +326,31 @@ dd {
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 800;
+}
+
+.view-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.view-actions button {
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.view-actions button[aria-pressed="true"] {
+  border-color: #b9cbc8;
+  background: #eef6f4;
+  color: var(--accent-strong);
 }
 
 .legend span {
@@ -307,7 +373,7 @@ dd {
 
 .tree-viewport {
   position: relative;
-  min-height: 520px;
+  min-height: 0;
   overflow: hidden;
   cursor: grab;
   background:
@@ -324,7 +390,7 @@ dd {
 #tree-svg {
   width: 100%;
   height: 100%;
-  min-height: 520px;
+  min-height: 0;
   display: block;
 }
 
@@ -354,6 +420,14 @@ dd {
   font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.overview-scale .family-label {
+  display: none;
+}
+
+.overview-scale .family-unit {
+  fill: rgba(255, 255, 255, 0.36);
 }
 
 .tree-node {
@@ -456,15 +530,49 @@ dd {
     height: auto;
     min-height: 100vh;
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "sidebar"
+      "tree"
+      "details";
     overflow: visible;
+  }
+
+  .people-collapsed .app-shell,
+  .profile-collapsed .app-shell,
+  .people-collapsed.profile-collapsed .app-shell {
+    grid-template-columns: 1fr;
   }
 
   .sidebar,
   .details {
+    display: block;
     height: auto;
     max-height: none;
     border: 0;
     overflow: visible;
+  }
+
+  .sidebar {
+    grid-area: sidebar;
+  }
+
+  .tree-area {
+    grid-area: tree;
+  }
+
+  .details {
+    grid-area: details;
+  }
+
+  .people-collapsed .sidebar,
+  .profile-collapsed .details {
+    display: none;
+  }
+
+  .person-list {
+    max-height: 360px;
+    overflow-y: auto;
+    padding-right: 2px;
   }
 
   .tree-area {
@@ -473,10 +581,64 @@ dd {
 
   .tree-header {
     align-items: flex-start;
+    gap: 12px;
     padding: 16px;
+  }
+
+  .tree-tools {
+    display: grid;
+    justify-items: end;
+    gap: 10px;
   }
 
   .tree-summary {
     justify-items: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .sidebar,
+  .details {
+    padding: 12px;
+  }
+
+  .brand-block {
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-size: 1.45rem;
+  }
+
+  .toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .toolbar button {
+    width: 100%;
+    padding: 0 8px;
+  }
+
+  .tree-header {
+    display: grid;
+  }
+
+  .tree-header h2 {
+    white-space: normal;
+  }
+
+  .tree-tools {
+    justify-items: stretch;
+  }
+
+  .tree-summary,
+  .legend {
+    justify-content: flex-start;
+    justify-items: start;
+  }
+
+  .view-actions button {
+    flex: 1;
   }
 }
