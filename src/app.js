@@ -2,6 +2,7 @@ const state = {
   data: null,
   selectedId: null,
   rootId: null,
+  focusDirect: false,
   scale: 1,
   offsetX: 0,
   offsetY: 0,
@@ -12,6 +13,7 @@ const els = {
   list: document.querySelector("#person-list"),
   loadJson: document.querySelector("#load-json"),
   importJson: document.querySelector("#import-json"),
+  focusDirect: document.querySelector("#focus-direct"),
   fit: document.querySelector("#fit-tree"),
   exportJson: document.querySelector("#export-json"),
   title: document.querySelector("#tree-title"),
@@ -34,6 +36,10 @@ async function init() {
   els.search.addEventListener("input", renderPeople);
   els.loadJson.addEventListener("click", () => els.importJson.click());
   els.importJson.addEventListener("change", importData);
+  els.focusDirect.addEventListener("click", () => {
+    state.focusDirect = !state.focusDirect;
+    renderTree();
+  });
   els.fit.addEventListener("click", fitTree);
   els.exportJson.addEventListener("click", exportData);
   els.viewport.addEventListener("wheel", onZoom, { passive: false });
@@ -130,6 +136,7 @@ function renderTree() {
   if (!root) return;
 
   const graph = buildBranch(root.id);
+  const directIds = directRelatives(root.id);
   const nodes = layoutNodes(graph);
   const links = layoutLinks(nodes);
   const width = Math.max(els.viewport.clientWidth, 900);
@@ -137,6 +144,8 @@ function renderTree() {
 
   els.title.textContent = root.name;
   els.count.textContent = `${nodes.length} people`;
+  els.focusDirect.classList.toggle("active", state.focusDirect);
+  els.focusDirect.setAttribute("aria-pressed", String(state.focusDirect));
   els.svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   els.svg.replaceChildren();
 
@@ -151,8 +160,9 @@ function renderTree() {
   }
 
   for (const node of nodes) {
+    const isCollateral = state.focusDirect && !directIds.has(node.person.id);
     const group = svgEl("g", {
-      class: `tree-node ${node.person.id === state.selectedId ? "selected" : ""}`,
+      class: `tree-node ${node.person.id === state.selectedId ? "selected" : ""} ${isCollateral ? "dimmed" : ""}`,
       transform: `translate(${node.x} ${node.y})`,
       tabindex: "0",
       role: "button",
@@ -171,24 +181,44 @@ function renderTree() {
 }
 
 function buildBranch(rootId) {
-  const root = personById(rootId);
-  const ancestors = collectAncestors(rootId, 2);
-  const descendants = collectDescendants(rootId, 4);
-  const spouses = root.spouses || [];
-  const ids = [...new Set([...ancestors, rootId, ...spouses, ...descendants])];
+  const ids = connectedRelatives(rootId);
   return ids.map((id) => personById(id)).filter(Boolean);
 }
 
-function collectAncestors(id, depth) {
-  if (depth <= 0) return [];
-  const person = personById(id);
-  return (person?.parents || []).flatMap((parentId) => [parentId, ...collectAncestors(parentId, depth - 1)]);
+function connectedRelatives(rootId) {
+  const queue = [rootId];
+  const seen = new Set();
+  const ordered = [];
+  while (queue.length) {
+    const id = queue.shift();
+    if (seen.has(id)) continue;
+    const person = personById(id);
+    if (!person) continue;
+    seen.add(id);
+    ordered.push(id);
+    queue.push(...relationshipIds(person));
+  }
+  return ordered;
 }
 
-function collectDescendants(id, depth) {
-  if (depth <= 0) return [];
-  const person = personById(id);
-  return (person?.children || []).flatMap((childId) => [childId, ...collectDescendants(childId, depth - 1)]);
+function directRelatives(rootId) {
+  return new Set([rootId, ...walkLine(rootId, "parents"), ...walkLine(rootId, "children")]);
+}
+
+function walkLine(rootId, key) {
+  const queue = [...(personById(rootId)?.[key] || [])];
+  const seen = new Set();
+  const ordered = [];
+  while (queue.length) {
+    const id = queue.shift();
+    if (seen.has(id)) continue;
+    const person = personById(id);
+    if (!person) continue;
+    seen.add(id);
+    ordered.push(id);
+    queue.push(...(person[key] || []));
+  }
+  return ordered;
 }
 
 function layoutNodes(branch) {
@@ -226,27 +256,29 @@ function layoutLinks(nodes) {
 
 function generationOffset(rootId, targetId) {
   if (rootId === targetId) return 0;
-  const up = distance(rootId, targetId, "parents");
-  if (up !== null) return -up;
-  const down = distance(rootId, targetId, "children");
-  if (down !== null) return down;
-  const root = personById(rootId);
-  if (root?.spouses?.includes(targetId)) return 0;
+  const weighted = weightedDistance(rootId, targetId);
+  if (weighted !== null) return weighted;
   return 1;
 }
 
-function distance(startId, targetId, key) {
-  const queue = [{ id: startId, distance: 0 }];
+function weightedDistance(startId, targetId) {
+  const queue = [{ id: startId, generation: 0 }];
   const seen = new Set();
   while (queue.length) {
     const current = queue.shift();
-    if (current.id === targetId) return current.distance;
+    if (current.id === targetId) return current.generation;
     if (seen.has(current.id)) continue;
     seen.add(current.id);
     const person = personById(current.id);
-    for (const nextId of person?.[key] || []) queue.push({ id: nextId, distance: current.distance + 1 });
+    for (const parentId of person?.parents || []) queue.push({ id: parentId, generation: current.generation - 1 });
+    for (const spouseId of person?.spouses || []) queue.push({ id: spouseId, generation: current.generation });
+    for (const childId of person?.children || []) queue.push({ id: childId, generation: current.generation + 1 });
   }
   return null;
+}
+
+function relationshipIds(person) {
+  return [...(person.parents || []), ...(person.spouses || []), ...(person.children || [])];
 }
 
 function selectPerson(id, reroot = true) {
