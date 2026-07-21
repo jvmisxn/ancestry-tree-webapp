@@ -25,6 +25,9 @@ const els = {
   detailNotes: document.querySelector("#detail-notes"),
   detailRelations: document.querySelector("#detail-relations"),
   detailSources: document.querySelector("#detail-sources"),
+  dataStatus: document.querySelector("#data-status"),
+  centerPerson: document.querySelector("#center-person"),
+  homePerson: document.querySelector("#home-person"),
 };
 
 async function init() {
@@ -42,6 +45,17 @@ async function init() {
   });
   els.fit.addEventListener("click", fitTree);
   els.exportJson.addEventListener("click", exportData);
+  els.centerPerson.addEventListener("click", () => {
+    state.rootId = state.selectedId;
+    fitTree();
+    render();
+  });
+  els.homePerson.addEventListener("click", () => {
+    state.selectedId = state.data.meta.defaultPersonId || state.data.people[0]?.id;
+    state.rootId = state.selectedId;
+    fitTree();
+    render();
+  });
   els.viewport.addEventListener("wheel", onZoom, { passive: false });
   enableDrag();
 
@@ -85,6 +99,16 @@ function render() {
   renderPeople();
   renderDetails();
   renderTree();
+  renderDataStatus();
+}
+
+function renderDataStatus(message, tone = "neutral") {
+  const isSample = people().some((person) => (person.tags || []).includes("sample"));
+  const summary = message || (isSample
+    ? "Sample data loaded. Load your private family.json to view the real tree."
+    : `${people().length} people loaded from local browser data. Nothing is uploaded.`);
+  els.dataStatus.className = `data-status ${tone}`;
+  els.dataStatus.textContent = summary;
 }
 
 function renderPeople() {
@@ -113,8 +137,6 @@ function renderPeople() {
       `;
       button.addEventListener("click", () => {
         state.selectedId = person.id;
-        state.rootId = person.id;
-        fitTree();
         render();
       });
       return button;
@@ -164,12 +186,17 @@ function renderTree() {
   const graph = buildBranch(root.id, index);
   const directIds = directRelatives(root.id, index);
   const nodes = layoutNodes(graph, index);
+  const familyUnits = layoutFamilyUnits(nodes, index, directIds);
   const links = layoutLinks(nodes, index, directIds);
   const width = Math.max(els.viewport.clientWidth, 900);
   const height = Math.max(els.viewport.clientHeight, 640);
+  const directCount = nodes.filter((node) => directIds.has(node.person.id)).length;
+  const collateralCount = nodes.length - directCount;
 
   els.title.textContent = root.name;
-  els.count.textContent = `${nodes.length} people`;
+  els.count.textContent = state.focusDirect
+    ? `${directCount} direct, ${collateralCount} collateral`
+    : `${nodes.length} relatives`;
   els.focusDirect.classList.toggle("active", state.focusDirect);
   els.focusDirect.setAttribute("aria-pressed", String(state.focusDirect));
   els.svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
@@ -177,6 +204,20 @@ function renderTree() {
 
   const g = svgEl("g", { transform: `translate(${state.offsetX} ${state.offsetY}) scale(${state.scale})` });
   els.svg.append(g);
+
+  for (const unit of familyUnits) {
+    g.append(svgEl("rect", {
+      class: `family-unit ${state.focusDirect && !unit.direct ? "dimmed" : ""}`,
+      x: unit.x,
+      y: unit.y,
+      width: unit.width,
+      height: unit.height,
+      rx: 10,
+    }));
+    if (unit.label) {
+      g.append(svgText(unit.label, unit.x + 14, unit.y + 20, "family-label", "start"));
+    }
+  }
 
   for (const link of links) {
     g.append(svgEl("path", {
@@ -188,7 +229,7 @@ function renderTree() {
   for (const node of nodes) {
     const isCollateral = state.focusDirect && !directIds.has(node.person.id);
     const group = svgEl("g", {
-      class: `tree-node ${node.person.id === state.selectedId ? "selected" : ""} ${isCollateral ? "dimmed" : ""}`,
+      class: `tree-node ${node.person.id === state.rootId ? "root" : ""} ${node.person.id === state.selectedId ? "selected" : ""} ${isCollateral ? "dimmed" : ""}`,
       transform: `translate(${node.x} ${node.y})`,
       tabindex: "0",
       role: "button",
@@ -292,6 +333,48 @@ function layoutNodes(branch, index) {
     y += generationGap + (maxRows - 1) * laneGap;
   }
   return nodes;
+}
+
+function layoutFamilyUnits(nodes, index, directIds) {
+  const groups = new Map();
+  for (const node of nodes) {
+    const key = node.familyKey || `single:${node.person.id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(node);
+  }
+
+  return [...groups.entries()]
+    .filter(([, groupNodes]) => groupNodes.length > 1 || siblingParentIds(groupNodes[0].person.id, index).length)
+    .map(([key, groupNodes]) => {
+      const minX = Math.min(...groupNodes.map((node) => node.x)) - 112;
+      const maxX = Math.max(...groupNodes.map((node) => node.x)) + 112;
+      const minY = Math.min(...groupNodes.map((node) => node.y)) - 46;
+      const maxY = Math.max(...groupNodes.map((node) => node.y)) + 42;
+      return {
+        key,
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY,
+        label: familyUnitLabel(key, groupNodes, index),
+        direct: groupNodes.some((node) => directIds.has(node.person.id)),
+      };
+    });
+}
+
+function siblingParentIds(personId, index) {
+  return [...(index.get(personId)?.parents || [])];
+}
+
+function familyUnitLabel(key, groupNodes, index) {
+  if (key.startsWith("parents:")) {
+    const names = siblingParentIds(groupNodes[0].person.id, index)
+      .map((id) => personById(id)?.name)
+      .filter(Boolean);
+    return names.length ? `${names.join(" + ")} children` : "Children";
+  }
+  if (key.startsWith("spouses:")) return "Couple";
+  return "";
 }
 
 function familyGroups(rowPeople, index, directOrder) {
@@ -592,16 +675,22 @@ function exportData() {
 async function importData(event) {
   const [file] = event.target.files;
   if (!file) return;
-  const text = await file.text();
-  const data = JSON.parse(text);
-  validateData(data);
-  state.data = data;
-  state.selectedId = data.meta.defaultPersonId || data.people[0]?.id;
-  state.rootId = state.selectedId;
-  els.search.value = "";
-  fitTree();
-  render();
-  event.target.value = "";
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    validateData(data);
+    state.data = data;
+    state.selectedId = data.meta.defaultPersonId || data.people[0]?.id;
+    state.rootId = state.selectedId;
+    els.search.value = "";
+    fitTree();
+    render();
+    renderDataStatus(`Loaded ${data.people.length} people from ${file.name}. Nothing was uploaded.`, "success");
+  } catch (error) {
+    renderDataStatus(`Could not load ${file.name}: ${error.message}`, "error");
+  } finally {
+    event.target.value = "";
+  }
 }
 
 function validateData(data) {
@@ -644,8 +733,6 @@ function linkGroup(label, ids = []) {
       button.textContent = person?.name || id;
       button.addEventListener("click", () => {
         state.selectedId = id;
-        state.rootId = id;
-        fitTree();
         render();
       });
       return button;
@@ -661,8 +748,9 @@ function empty(message) {
 }
 
 function formatYears(person) {
-  const born = person.birth?.date ? person.birth.date.slice(0, 4) : "?";
+  const born = person.birth?.date ? person.birth.date.slice(0, 4) : "";
   const died = person.death?.date ? person.death.date.slice(0, 4) : "";
+  if (!born && !died) return "";
   return died ? `${born}-${died}` : `b. ${born}`;
 }
 
@@ -677,8 +765,8 @@ function svgEl(name, attrs) {
   return el;
 }
 
-function svgText(value, x, y, className) {
-  const text = svgEl("text", { x, y, class: className, "text-anchor": "middle" });
+function svgText(value, x, y, className, anchor = "middle") {
+  const text = svgEl("text", { x, y, class: className, "text-anchor": anchor });
   text.textContent = value;
   return text;
 }

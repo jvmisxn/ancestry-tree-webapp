@@ -20,12 +20,14 @@
         </label>
 
         <div class="toolbar" aria-label="Tree actions">
-          <button id="load-json" type="button" title="Load private family data">Load</button>
+          <button id="load-json" type="button" title="Load private family data">Load data</button>
           <input id="import-json" class="file-input" type="file" accept="application/json,.json" />
-          <button id="focus-direct" type="button" title="Dim collateral relatives">Direct</button>
-          <button id="fit-tree" type="button" title="Fit tree to view">Fit</button>
-          <button id="export-json" type="button" title="Download family data">Export</button>
+          <button id="focus-direct" type="button" title="Highlight the selected person's direct parent/child line">Direct line</button>
+          <button id="fit-tree" type="button" title="Fit tree to view">Fit view</button>
+          <button id="export-json" type="button" title="Download family data">Export data</button>
         </div>
+
+        <div id="data-status" class="data-status" role="status"></div>
 
         <section class="panel">
           <h2>People</h2>
@@ -36,10 +38,16 @@
       <section class="tree-area" aria-label="Family tree visualization">
         <div class="tree-header">
           <div>
-            <p class="eyebrow">Selected Branch</p>
+            <p class="eyebrow">Family Group</p>
             <h2 id="tree-title">Loading family tree...</h2>
           </div>
-          <div id="tree-count" class="tree-count"></div>
+          <div class="tree-summary">
+            <div id="tree-count" class="tree-count"></div>
+            <div class="legend" aria-label="Tree legend">
+              <span><i class="legend-swatch direct"></i>Direct line</span>
+              <span><i class="legend-swatch collateral"></i>Collateral</span>
+            </div>
+          </div>
         </div>
         <div id="tree-viewport" class="tree-viewport">
           <svg id="tree-svg" role="img" aria-label="Interactive family tree"></svg>
@@ -50,6 +58,10 @@
         <section class="panel person-card">
           <p class="eyebrow">Profile</p>
           <h2 id="detail-name">Select someone</h2>
+          <div class="profile-actions">
+            <button id="center-person" type="button">Center family</button>
+            <button id="home-person" type="button">Home</button>
+          </div>
           <dl id="detail-facts"></dl>
           <div id="detail-notes" class="notes"></div>
         </section>
