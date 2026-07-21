@@ -2,7 +2,7 @@ const state = {
   data: null,
   selectedId: null,
   rootId: null,
-  focusDirect: true,
+  collapseCollateral: false,
   scale: 1,
   offsetX: 0,
   offsetY: 0,
@@ -40,8 +40,9 @@ async function init() {
   els.loadJson.addEventListener("click", () => els.importJson.click());
   els.importJson.addEventListener("change", importData);
   els.focusDirect.addEventListener("click", () => {
-    state.focusDirect = !state.focusDirect;
-    renderTree();
+    state.collapseCollateral = !state.collapseCollateral;
+    fitTree();
+    render();
   });
   els.fit.addEventListener("click", fitTree);
   els.exportJson.addEventListener("click", exportData);
@@ -183,22 +184,28 @@ function renderTree() {
   if (!root) return;
 
   const index = relationshipIndex();
-  const graph = buildBranch(root.id, index);
   const directIds = directRelatives(root.id, index);
+  const pyramidIds = directPyramidIds(root.id, index);
+  const visibleIds = state.collapseCollateral ? pyramidIds : null;
+  const graph = buildBranch(root.id, index, visibleIds);
   const nodes = layoutNodes(graph, index);
   const familyUnits = layoutFamilyUnits(nodes, index, directIds);
   const links = layoutLinks(nodes, index, directIds);
   const width = Math.max(els.viewport.clientWidth, 900);
   const height = Math.max(els.viewport.clientHeight, 640);
   const directCount = nodes.filter((node) => directIds.has(node.person.id)).length;
-  const collateralCount = nodes.length - directCount;
+  const contextCount = nodes.length - directCount;
 
   els.title.textContent = root.name;
-  els.count.textContent = state.focusDirect
-    ? `${directCount} direct, ${collateralCount} collateral`
-    : `${nodes.length} relatives`;
-  els.focusDirect.classList.toggle("active", state.focusDirect);
-  els.focusDirect.setAttribute("aria-pressed", String(state.focusDirect));
+  els.count.textContent = state.collapseCollateral
+    ? `${directCount} direct, ${contextCount} context`
+    : `${directCount} direct, ${contextCount} collateral`;
+  els.focusDirect.textContent = state.collapseCollateral ? "Show collateral" : "Hide collateral";
+  els.focusDirect.title = state.collapseCollateral
+    ? "Show extended collateral relatives around this family"
+    : "Hide extended collateral relatives and show the focused family pyramid";
+  els.focusDirect.classList.toggle("active", state.collapseCollateral);
+  els.focusDirect.setAttribute("aria-pressed", String(state.collapseCollateral));
   els.svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   els.svg.replaceChildren();
 
@@ -207,7 +214,7 @@ function renderTree() {
 
   for (const unit of familyUnits) {
     g.append(svgEl("rect", {
-      class: `family-unit ${state.focusDirect && !unit.direct ? "dimmed" : ""}`,
+      class: `family-unit ${!state.collapseCollateral && !unit.direct ? "dimmed" : ""}`,
       x: unit.x,
       y: unit.y,
       width: unit.width,
@@ -221,13 +228,13 @@ function renderTree() {
 
   for (const link of links) {
     g.append(svgEl("path", {
-      class: `tree-link ${link.kind || ""} ${state.focusDirect && !link.direct ? "dimmed" : ""}`,
+      class: `tree-link ${link.kind || ""} ${!state.collapseCollateral && !link.direct ? "dimmed" : ""}`,
       d: link.d,
     }));
   }
 
   for (const node of nodes) {
-    const isCollateral = state.focusDirect && !directIds.has(node.person.id);
+    const isCollateral = !state.collapseCollateral && !directIds.has(node.person.id);
     const group = svgEl("g", {
       class: `tree-node ${node.person.id === state.rootId ? "root" : ""} ${node.person.id === state.selectedId ? "selected" : ""} ${isCollateral ? "dimmed" : ""}`,
       transform: `translate(${node.x} ${node.y})`,
@@ -235,9 +242,15 @@ function renderTree() {
       role: "button",
       "aria-label": node.person.name,
     });
-    group.addEventListener("click", () => selectPerson(node.person.id, false));
+    group.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+    });
+    group.addEventListener("click", () => selectPerson(node.person.id, true));
     group.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") selectPerson(node.person.id, false);
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        selectPerson(node.person.id, true);
+      }
     });
 
     group.append(svgEl("rect", { x: -96, y: -30, width: 192, height: 60, rx: 8 }));
@@ -247,8 +260,8 @@ function renderTree() {
   }
 }
 
-function buildBranch(rootId, index) {
-  const ids = connectedRelatives(rootId, index);
+function buildBranch(rootId, index, visibleIds = null) {
+  const ids = connectedRelatives(rootId, index).filter((id) => !visibleIds || visibleIds.has(id));
   return ids.map((id) => personById(id)).filter(Boolean);
 }
 
@@ -270,6 +283,26 @@ function connectedRelatives(rootId, index) {
 
 function directRelatives(rootId, index) {
   return new Set([rootId, ...walkLine(rootId, "parents", index), ...walkLine(rootId, "children", index)]);
+}
+
+function directPyramidIds(rootId, index) {
+  const ids = directRelatives(rootId, index);
+  const rootRelations = index.get(rootId);
+
+  for (const spouseId of rootRelations?.spouses || []) ids.add(spouseId);
+
+  for (const parentId of rootRelations?.parents || []) {
+    for (const siblingId of index.get(parentId)?.children || []) ids.add(siblingId);
+  }
+
+  for (const id of [...ids]) {
+    for (const spouseId of index.get(id)?.spouses || []) {
+      const sharesChild = [...(index.get(id)?.children || [])].some((childId) => ids.has(childId));
+      if (id === rootId || sharesChild) ids.add(spouseId);
+    }
+  }
+
+  return ids;
 }
 
 function walkLine(rootId, key, index) {
@@ -618,14 +651,18 @@ function relationshipIds(id, index) {
 
 function selectPerson(id, reroot = true) {
   state.selectedId = id;
-  if (reroot) state.rootId = id;
+  if (reroot) {
+    state.rootId = id;
+    fitTree();
+  }
   render();
 }
 
 function fitTree() {
   const index = relationshipIndex();
   const root = personById(state.rootId);
-  const graph = root ? buildBranch(root.id, index) : [];
+  const visibleIds = root && state.collapseCollateral ? directPyramidIds(root.id, index) : null;
+  const graph = root ? buildBranch(root.id, index, visibleIds) : [];
   const nodes = layoutNodes(graph, index);
   const bounds = treeBounds(nodes);
   const width = Math.max(els.viewport.clientWidth, 900);
