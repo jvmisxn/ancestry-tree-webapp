@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Family Tree</title>
-    <link rel="stylesheet" href="./src/styles.css" />
+    <link rel="stylesheet" href="./src/styles.css?v=progressive-ancestors-2" />
   </head>
   <body>
     <main class="app-shell">
@@ -48,7 +48,7 @@
               </div>
             </div>
             <div class="view-actions" aria-label="View panels">
-              <button id="focus-direct" type="button" title="Show only the direct family line around the current focus">Direct line only</button>
+              <button id="focus-direct" type="button" title="Show every connected relative around this family">Show full tree</button>
               <button id="fit-tree" type="button" title="Fit tree to view">Fit view</button>
               <button id="toggle-people" type="button" aria-pressed="false">People</button>
               <button id="toggle-profile" type="button" aria-pressed="false">Profile</button>
@@ -85,6 +85,6 @@
       </aside>
     </main>
 
-    <script type="module" src="./src/app.js"></script>
+    <script type="module" src="./src/app.js?v=progressive-ancestors-2"></script>
   </body>
 </html>
