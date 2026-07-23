@@ -640,20 +640,22 @@ function directAncestorOrder(rootId, index) {
 function layoutLinks(nodes, index, directIds) {
   const nodeById = new Map(nodes.map((node) => [node.person.id, node]));
   const links = [];
-  const seenFamilies = new Set();
   const seenSpouses = new Set();
+  const familyMap = new Map();
 
   for (const childNode of nodes) {
     const parentIds = [...(index.get(childNode.person.id)?.parents || [])].filter((id) => nodeById.has(id));
     if (!parentIds.length) continue;
-    const key = `${parentIds.join("+")}:${childNode.person.id}`;
-    if (seenFamilies.has(key)) continue;
-    seenFamilies.add(key);
+    const key = parentIds.slice().sort().join("+");
+    if (!familyMap.has(key)) familyMap.set(key, { parentIds, children: [] });
+    familyMap.get(key).children.push(childNode);
+  }
 
+  for (const { parentIds, children } of familyMap.values()) {
     const parents = parentIds.map((id) => nodeById.get(id));
-    const busY = Math.max(...parents.map((parent) => parent.y)) + 58;
+    const parentBottomY = Math.max(...parents.map((parent) => parent.y)) + 30;
     const parentCenter = parents.reduce((total, parent) => total + parent.x, 0) / parents.length;
-    const direct = directIds.has(childNode.person.id) && parentIds.some((id) => directIds.has(id));
+    const direct = children.some((child) => directIds.has(child.person.id)) && parentIds.some((id) => directIds.has(id));
 
     if (parents.length > 1) {
       const [left, right] = [...parents].sort((a, b) => a.x - b.x);
@@ -666,17 +668,40 @@ function layoutLinks(nodes, index, directIds) {
           d: `M ${left.x + 96} ${left.y} L ${right.x - 96} ${right.y}`,
         });
       }
+    }
+
+    if (children.length === 1) {
+      const childNode = children[0];
       links.push({
         kind: "family-link",
-        direct,
-        d: `M ${parentCenter} ${parents[0].y + 30} L ${parentCenter} ${busY} L ${childNode.x} ${busY} L ${childNode.x} ${childNode.y - 30}`,
+        direct: directIds.has(childNode.person.id) && parentIds.some((id) => directIds.has(id)),
+        d: familyCurvePath(parentCenter, parentBottomY, childNode.x, childNode.y - 30),
       });
-    } else {
-      const parent = parents[0];
+      continue;
+    }
+
+    const childrenByX = [...children].sort((a, b) => a.x - b.x);
+    const childTopY = Math.min(...childrenByX.map((child) => child.y)) - 30;
+    const busY = childTopY - 26;
+    const minChildX = Math.min(...childrenByX.map((child) => child.x));
+    const maxChildX = Math.max(...childrenByX.map((child) => child.x));
+
+    links.push({
+      kind: "family-link",
+      direct,
+      d: `M ${parentCenter} ${parentBottomY} L ${parentCenter} ${busY}`,
+    });
+    links.push({
+      kind: "family-link",
+      direct,
+      d: `M ${minChildX} ${busY} L ${maxChildX} ${busY}`,
+    });
+
+    for (const childNode of childrenByX) {
       links.push({
         kind: "family-link",
-        direct,
-        d: `M ${parent.x} ${parent.y + 30} C ${parent.x} ${(parent.y + childNode.y) / 2}, ${childNode.x} ${(parent.y + childNode.y) / 2}, ${childNode.x} ${childNode.y - 30}`,
+        direct: directIds.has(childNode.person.id) && parentIds.some((id) => directIds.has(id)),
+        d: `M ${childNode.x} ${busY} L ${childNode.x} ${childNode.y - 30}`,
       });
     }
   }
@@ -697,6 +722,11 @@ function layoutLinks(nodes, index, directIds) {
     }
   }
   return links;
+}
+
+function familyCurvePath(startX, startY, endX, endY) {
+  const midY = (startY + endY) / 2;
+  return `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`;
 }
 
 function treeBounds(nodes) {
