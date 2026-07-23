@@ -449,6 +449,7 @@ function layoutNodes(branch, index) {
         x += ancestorSideGap;
       }
       const groupWidth = widths[groupIndex];
+      const groupDrift = ancestorBranchDrift(root.id, group, generation, index);
       group.people.forEach((person, index) => {
         const lane = Math.floor(index / maxGroupColumns);
         const column = index % maxGroupColumns;
@@ -456,7 +457,7 @@ function layoutNodes(branch, index) {
         const laneWidth = laneLength * nodeGap;
         nodes.push({
           person,
-          x: x + (groupWidth - laneWidth) / 2 + nodeGap / 2 + column * nodeGap,
+          x: x + groupDrift + (groupWidth - laneWidth) / 2 + nodeGap / 2 + column * nodeGap,
           y: y + lane * laneGap,
           familyKey: group.key,
         });
@@ -552,6 +553,22 @@ function familyGroups(rowPeople, index, directOrder) {
   }
 
   return groups.sort((a, b) => a.anchor - b.anchor || a.key.localeCompare(b.key));
+}
+
+function ancestorBranchDrift(rootId, group, generation, index) {
+  if (generation >= 0) return 0;
+
+  const side = ancestorSideForGroup(rootId, group, index);
+  if (side === null) return 0;
+
+  const rootParents = [...(index.get(rootId)?.parents || [])];
+  const middle = (rootParents.length - 1) / 2;
+  const direction = Math.sign(side - middle);
+  if (!direction) return 0;
+
+  const depthPastParents = Math.max(0, Math.abs(generation) - 1);
+  const diagonalStep = state.collapseCollateral ? 92 : 76;
+  return direction * depthPastParents * diagonalStep;
 }
 
 function ancestorSideForGroup(rootId, group, index) {
