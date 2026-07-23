@@ -130,8 +130,8 @@ function render() {
 function syncPanelState() {
   document.body.classList.toggle("people-collapsed", state.peopleCollapsed);
   document.body.classList.toggle("profile-collapsed", state.profileCollapsed);
-  els.togglePeople.textContent = state.peopleCollapsed ? "Show people" : "Hide people";
-  els.toggleProfile.textContent = state.profileCollapsed ? "Show profile" : "Hide profile";
+  els.togglePeople.textContent = "People";
+  els.toggleProfile.textContent = "Profile";
   els.togglePeople.setAttribute("aria-pressed", String(!state.peopleCollapsed));
   els.toggleProfile.setAttribute("aria-pressed", String(!state.profileCollapsed));
 }
@@ -216,7 +216,7 @@ function renderTree() {
   if (!root) return;
 
   const index = relationshipIndex();
-  const directIds = directRelatives(state.selectedId, index);
+  const directIds = directRelatives(root.id, index);
   const pyramidIds = directRelatives(root.id, index);
   const visibleIds = state.collapseCollateral ? pyramidIds : null;
   const graph = buildBranch(root.id, index, visibleIds);
@@ -232,10 +232,10 @@ function renderTree() {
   els.count.textContent = state.collapseCollateral
     ? `${directCount} direct`
     : `${directCount} direct, ${collateralCount} collateral`;
-  els.focusDirect.textContent = state.collapseCollateral ? "Show collateral" : "Hide collateral";
+  els.focusDirect.textContent = state.collapseCollateral ? "Show full tree" : "Direct line only";
   els.focusDirect.title = state.collapseCollateral
-    ? "Show extended collateral relatives around this family"
-    : "Hide extended collateral relatives and show the focused family pyramid";
+    ? "Show collateral relatives around this family"
+    : "Show only the direct family line around the current focus";
   els.focusDirect.classList.toggle("active", state.collapseCollateral);
   els.focusDirect.setAttribute("aria-pressed", String(state.collapseCollateral));
   els.svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
@@ -278,11 +278,11 @@ function renderTree() {
     group.addEventListener("pointerdown", (event) => {
       event.stopPropagation();
     });
-    group.addEventListener("click", () => selectPerson(node.person.id, true, true));
+    group.addEventListener("click", () => selectPerson(node.person.id, state.collapseCollateral, true));
     group.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        selectPerson(node.person.id, true, true);
+        selectPerson(node.person.id, state.collapseCollateral, true);
       }
     });
 
@@ -335,11 +335,11 @@ function walkLine(rootId, key, index) {
 }
 
 function layoutNodes(branch, index) {
-  const nodeGap = 214;
-  const groupGap = 120;
+  const nodeGap = state.collapseCollateral ? 204 : 206;
+  const groupGap = state.collapseCollateral ? 84 : 68;
   const laneGap = 86;
   const generationGap = 148;
-  const maxGroupColumns = 6;
+  const maxGroupColumns = state.collapseCollateral ? 5 : 3;
   const root = personById(state.rootId);
   const rows = new Map();
   const directOrder = directAncestorOrder(root.id, index);
@@ -414,13 +414,21 @@ function siblingParentIds(personId, index) {
 
 function familyUnitLabel(key, groupNodes, index) {
   if (key.startsWith("parents:")) {
-    const names = siblingParentIds(groupNodes[0].person.id, index)
+    const surnames = siblingParentIds(groupNodes[0].person.id, index)
       .map((id) => personById(id)?.name)
+      .map(surnameFromName)
       .filter(Boolean);
-    return names.length ? `${names.join(" + ")} children` : "Children";
+    const uniqueSurnames = [...new Set(surnames)].slice(0, 2);
+    return uniqueSurnames.length ? `Children of ${uniqueSurnames.join(" + ")}` : "Children";
   }
   if (key.startsWith("spouses:")) return "Couple";
   return "";
+}
+
+function surnameFromName(name = "") {
+  const clean = name.replace(/".*?"/g, "").trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : "";
 }
 
 function familyGroups(rowPeople, index, directOrder) {
@@ -649,8 +657,8 @@ function treeBounds(nodes) {
   const ys = nodes.map((node) => node.y);
   const minX = Math.min(...xs) - 110;
   const maxX = Math.max(...xs) + 110;
-  const minY = Math.min(...ys) - 50;
-  const maxY = Math.max(...ys) + 50;
+  const minY = Math.min(...ys) - 96;
+  const maxY = Math.max(...ys) + 58;
   return {
     minX,
     maxX,
@@ -725,7 +733,7 @@ function fitTreeAfterLayout() {
 function onZoom(event) {
   event.preventDefault();
   const direction = event.deltaY > 0 ? -0.08 : 0.08;
-  state.scale = Math.min(1.8, Math.max(0.55, state.scale + direction));
+  state.scale = Math.min(1.8, Math.max(0.34, state.scale + direction));
   renderTree();
 }
 

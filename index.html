@@ -36,7 +36,7 @@
       <section class="tree-area" aria-label="Family tree visualization">
         <div class="tree-header">
           <div>
-            <p class="eyebrow">Family Group</p>
+            <p class="eyebrow">Tree focused on</p>
             <h2 id="tree-title">Loading family tree...</h2>
           </div>
           <div class="tree-tools">
@@ -48,7 +48,7 @@
               </div>
             </div>
             <div class="view-actions" aria-label="View panels">
-              <button id="focus-direct" type="button" title="Hide extended collateral relatives and show the focused family pyramid">Hide collateral</button>
+              <button id="focus-direct" type="button" title="Show only the direct family line around the current focus">Direct line only</button>
               <button id="fit-tree" type="button" title="Fit tree to view">Fit view</button>
               <button id="toggle-people" type="button" aria-pressed="false">People</button>
               <button id="toggle-profile" type="button" aria-pressed="false">Profile</button>
@@ -66,8 +66,8 @@
           <p class="eyebrow">Profile</p>
           <h2 id="detail-name">Select someone</h2>
           <div class="profile-actions">
-            <button id="center-person" type="button">Center family</button>
-            <button id="home-person" type="button">Home</button>
+            <button id="center-person" type="button">Make tree focus</button>
+            <button id="home-person" type="button">Return to start</button>
           </div>
           <dl id="detail-facts"></dl>
           <div id="detail-notes" class="notes"></div>
