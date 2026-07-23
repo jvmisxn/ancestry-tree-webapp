@@ -1,5 +1,8 @@
+const STORAGE_KEY = "jmo-ancestry-family-data";
+
 const state = {
   data: null,
+  hasStoredData: false,
   selectedId: null,
   rootId: null,
   collapseCollateral: true,
@@ -27,6 +30,7 @@ const els = {
   search: document.querySelector("#person-search"),
   list: document.querySelector("#person-list"),
   loadJson: document.querySelector("#load-json"),
+  clearData: document.querySelector("#clear-data"),
   importJson: document.querySelector("#import-json"),
   focusDirect: document.querySelector("#focus-direct"),
   fit: document.querySelector("#fit-tree"),
@@ -53,14 +57,20 @@ const els = {
 };
 
 async function init() {
-  const response = await fetch("./data/sample-family.json");
-  state.data = await response.json();
-  state.selectedId = state.data.meta.defaultPersonId;
+  const stored = loadStoredData();
+  if (stored) {
+    state.data = stored;
+    state.hasStoredData = true;
+  } else {
+    state.data = await fetchSampleData();
+  }
+  state.selectedId = state.data.meta?.defaultPersonId || state.data.people[0]?.id;
   state.rootId = state.selectedId;
 
   els.search.addEventListener("input", renderPeople);
   els.loadJson.addEventListener("click", () => els.importJson.click());
   els.importJson.addEventListener("change", importData);
+  els.clearData.addEventListener("click", forgetStoredData);
   els.focusDirect.addEventListener("click", () => {
     state.collapseCollateral = !state.collapseCollateral;
     if (state.collapseCollateral) {
@@ -108,6 +118,58 @@ async function init() {
 
   state.profileCollapsed = true;
   syncPanelState();
+  render();
+  fitTreeAfterLayout();
+}
+
+async function fetchSampleData() {
+  const response = await fetch("./data/sample-family.json");
+  return response.json();
+}
+
+function loadStoredData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    validateData(data);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function storeData(data) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function forgetStoredData() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Storage may be unavailable; still fall back to sample data.
+  }
+  state.hasStoredData = false;
+  adoptData(await fetchSampleData());
+  renderDataStatus("Saved family data removed from this browser. Sample data loaded.", "success");
+}
+
+function adoptData(data) {
+  state.data = data;
+  state.selectedId = data.meta?.defaultPersonId || data.people[0]?.id;
+  state.rootId = state.selectedId;
+  state.collapseCollateral = true;
+  resetExpandedAncestors();
+  state.peopleCollapsed = true;
+  state.profileCollapsed = true;
+  syncPanelState();
+  els.search.value = "";
+  fitTree();
   render();
   fitTreeAfterLayout();
 }
@@ -166,9 +228,10 @@ function renderDataStatus(message, tone = "neutral") {
   const isSample = people().some((person) => (person.tags || []).includes("sample"));
   const summary = message || (isSample
     ? "Sample data loaded. Load your private family.json to view the real tree."
-    : `${people().length} people loaded from local browser data. Nothing is uploaded.`);
+    : `${people().length} people loaded${state.hasStoredData ? " from this browser's saved copy" : ""}. Nothing is uploaded.`);
   els.dataStatus.className = `data-status ${tone}`;
   els.dataStatus.textContent = summary;
+  els.clearData.hidden = !state.hasStoredData;
 }
 
 function renderPeople() {
@@ -1279,19 +1342,14 @@ async function importData(event) {
     const text = await file.text();
     const data = JSON.parse(text);
     validateData(data);
-    state.data = data;
-    state.selectedId = data.meta.defaultPersonId || data.people[0]?.id;
-    state.rootId = state.selectedId;
-    state.collapseCollateral = true;
-    resetExpandedAncestors();
-    state.peopleCollapsed = true;
-    state.profileCollapsed = true;
-    syncPanelState();
-    els.search.value = "";
-    fitTree();
-    render();
-    fitTreeAfterLayout();
-    renderDataStatus(`Loaded ${data.people.length} people from ${file.name}. Nothing was uploaded.`, "success");
+    state.hasStoredData = storeData(data);
+    adoptData(data);
+    renderDataStatus(
+      state.hasStoredData
+        ? `Loaded ${data.people.length} people from ${file.name}. Saved in this browser only - nothing is uploaded.`
+        : `Loaded ${data.people.length} people from ${file.name}. Could not save in this browser, so re-import next visit. Nothing was uploaded.`,
+      "success",
+    );
   } catch (error) {
     renderDataStatus(`Could not load ${file.name}: ${error.message}`, "error");
   } finally {

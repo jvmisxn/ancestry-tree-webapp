@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>JMO Ancestry</title>
-    <link rel="stylesheet" href="./src/styles.css?v=separate-ancestor-lanes-1" />
+    <link rel="stylesheet" href="./src/styles.css?v=local-save-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -23,6 +23,7 @@
           <button id="load-json" type="button" title="Load private family data">Load data</button>
           <input id="import-json" class="file-input" type="file" accept="application/json,.json" />
           <button id="export-json" type="button" title="Download family data">Export data</button>
+          <button id="clear-data" type="button" title="Remove the saved copy from this browser and return to sample data" hidden>Forget data</button>
         </div>
 
         <div id="data-status" class="data-status" role="status"></div>
@@ -88,6 +89,6 @@
       </aside>
     </main>
 
-    <script type="module" src="./src/app.js?v=separate-ancestor-lanes-1"></script>
+    <script type="module" src="./src/app.js?v=local-save-1"></script>
   </body>
 </html>
