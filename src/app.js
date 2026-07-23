@@ -394,7 +394,7 @@ function layoutFamilyUnits(nodes, index, directIds) {
     .map(([key, groupNodes]) => {
       const minX = Math.min(...groupNodes.map((node) => node.x)) - 112;
       const maxX = Math.max(...groupNodes.map((node) => node.x)) + 112;
-      const minY = Math.min(...groupNodes.map((node) => node.y)) - 46;
+      const minY = Math.min(...groupNodes.map((node) => node.y)) - 74;
       const maxY = Math.max(...groupNodes.map((node) => node.y)) + 42;
       return {
         key,
