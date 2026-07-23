@@ -929,6 +929,7 @@ async function importData(event) {
     state.data = data;
     state.selectedId = data.meta.defaultPersonId || data.people[0]?.id;
     state.rootId = state.selectedId;
+    state.collapseCollateral = true;
     resetExpandedAncestors();
     state.peopleCollapsed = true;
     state.profileCollapsed = true;
