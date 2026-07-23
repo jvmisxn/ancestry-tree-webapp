@@ -1,4 +1,4 @@
-# Ancestry Tree Webapp
+# JMO Ancestry
 
 Static browser interface for viewing a private family-tree JSON file.
 
