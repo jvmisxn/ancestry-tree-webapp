@@ -9,6 +9,7 @@ const state = {
   offsetY: 0,
   peopleCollapsed: false,
   profileCollapsed: false,
+  sourcesExpanded: false,
 };
 
 const els = {
@@ -24,10 +25,14 @@ const els = {
   viewport: document.querySelector("#tree-viewport"),
   svg: document.querySelector("#tree-svg"),
   detailName: document.querySelector("#detail-name"),
+  detailPhoto: document.querySelector("#detail-photo"),
+  detailStory: document.querySelector("#detail-story"),
   detailFacts: document.querySelector("#detail-facts"),
   detailNotes: document.querySelector("#detail-notes"),
   detailRelations: document.querySelector("#detail-relations"),
   detailSources: document.querySelector("#detail-sources"),
+  sourcesPanel: document.querySelector("#sources-panel"),
+  toggleSources: document.querySelector("#toggle-sources"),
   dataStatus: document.querySelector("#data-status"),
   centerPerson: document.querySelector("#center-person"),
   homePerson: document.querySelector("#home-person"),
@@ -82,6 +87,10 @@ async function init() {
   els.closeProfile.addEventListener("click", () => {
     state.profileCollapsed = true;
     syncPanelState();
+  });
+  els.toggleSources.addEventListener("click", () => {
+    state.sourcesExpanded = !state.sourcesExpanded;
+    renderDetails();
   });
   els.viewport.addEventListener("wheel", onZoom, { passive: false });
   enableDrag();
@@ -188,13 +197,16 @@ function renderDetails() {
   if (!person) return;
 
   els.detailName.textContent = person.name;
+  renderProfilePhoto(person);
+  renderLifeStory(person);
   els.detailFacts.replaceChildren(
     fact("Born", formatEvent(person.birth)),
     fact("Died", formatEvent(person.death)),
     fact("Known as", person.aliases?.join(", ")),
     fact("Tags", person.tags?.join(", ")),
   );
-  els.detailNotes.textContent = person.notes || "No notes yet.";
+  els.detailNotes.textContent = person.notes || "";
+  els.detailNotes.hidden = !person.notes;
 
   const relations = [
     ...linkGroup("Parents", person.parents),
@@ -203,18 +215,125 @@ function renderDetails() {
   ];
   els.detailRelations.replaceChildren(...relations);
 
-  const sourceItems = (person.sources || []).map((source) => {
-    const item = document.createElement(source.url ? "a" : "div");
-    item.className = "source-item";
-    item.textContent = source.label;
-    if (source.url) {
-      item.href = source.url;
-      item.target = "_blank";
-      item.rel = "noreferrer";
-    }
-    return item;
-  });
+  const sourceItems = profileSources(person).map(renderSourceItem);
+  els.toggleSources.hidden = sourceItems.length === 0;
+  els.toggleSources.textContent = `Sources${sourceItems.length ? ` (${sourceItems.length})` : ""}`;
+  els.toggleSources.setAttribute("aria-expanded", String(state.sourcesExpanded));
+  els.sourcesPanel.hidden = !state.sourcesExpanded;
   els.detailSources.replaceChildren(...sourceItems.length ? sourceItems : [empty("No sources attached yet.")]);
+}
+
+function renderProfilePhoto(person) {
+  const [photo] = profilePhotos(person);
+  els.detailPhoto.replaceChildren();
+  els.detailPhoto.hidden = !photo;
+  if (!photo) return;
+
+  const image = document.createElement("img");
+  image.src = photo.url;
+  image.alt = photo.alt || `Photo of ${person.name}`;
+  image.loading = "lazy";
+  els.detailPhoto.append(image);
+
+  const captionText = [photo.caption, photo.credit].filter(Boolean).join(" - ");
+  if (captionText) {
+    const caption = document.createElement("p");
+    caption.textContent = captionText;
+    els.detailPhoto.append(caption);
+  }
+}
+
+function renderLifeStory(person) {
+  const obituary = primaryObituary(person);
+  const story = person.profile?.article || person.lifeStory || person.profile?.summary || generatedLifeStory(person);
+  const paragraphs = Array.isArray(story) ? story : splitParagraphs(story);
+
+  els.detailStory.replaceChildren();
+  if (obituary) {
+    const badge = document.createElement("p");
+    badge.className = "story-kicker";
+    badge.textContent = obituary.publication
+      ? `Obituary available from ${obituary.publication}`
+      : "Obituary available";
+    els.detailStory.append(badge);
+  }
+
+  for (const paragraphText of paragraphs) {
+    const paragraph = document.createElement("p");
+    paragraph.textContent = paragraphText;
+    els.detailStory.append(paragraph);
+  }
+}
+
+function generatedLifeStory(person) {
+  const index = relationshipIndex();
+  const years = formatYears(person);
+  const birth = formatEvent(person.birth);
+  const death = formatEvent(person.death);
+  const parents = namesForIds(index.get(person.id)?.parents);
+  const spouses = namesForIds(index.get(person.id)?.spouses);
+  const children = namesForIds(index.get(person.id)?.children);
+  const lead = `${person.name}${years ? ` (${years})` : ""} is part of the working JMO family tree.`;
+  const parts = [lead];
+
+  if (birth) parts.push(`${givenName(person.name)} was born ${birth}.`);
+  if (parents.length) parts.push(`${givenName(person.name)} was recorded as the child of ${formatNameList(parents)}.`);
+  if (spouses.length) parts.push(`${givenName(person.name)} was connected in the tree with ${formatNameList(spouses)}.`);
+  if (children.length) parts.push(`Known children in this research set include ${formatNameList(children)}.`);
+  if (death) parts.push(`${givenName(person.name)} died ${death}.`);
+
+  return parts.join(" ");
+}
+
+function profilePhotos(person) {
+  return [
+    ...(person.profile?.photos || []),
+    ...(person.photos || []),
+  ].filter((photo) => photo?.url);
+}
+
+function profileSources(person) {
+  const sourceLike = [
+    ...(person.sources || []),
+    ...(person.profile?.sources || []),
+    ...(person.profile?.obituaries || []),
+    ...(person.obituaries || []),
+  ];
+  return sourceLike.filter((source) => source?.label || source?.title || source?.url);
+}
+
+function primaryObituary(person) {
+  return [...(person.profile?.obituaries || []), ...(person.obituaries || [])]
+    .find((item) => item?.url || item?.title || item?.publication);
+}
+
+function renderSourceItem(source) {
+  const item = document.createElement(source.url ? "a" : "div");
+  item.className = `source-item ${source.type ? `source-${source.type}` : ""}`;
+  if (source.url) {
+    item.href = source.url;
+    item.target = "_blank";
+    item.rel = "noreferrer";
+  }
+
+  const title = document.createElement("span");
+  title.textContent = source.label || source.title || source.url;
+  item.append(title);
+
+  const meta = [source.date, source.publication, source.repository, source.confidence].filter(Boolean).join(" - ");
+  if (meta) {
+    const small = document.createElement("small");
+    small.textContent = meta;
+    item.append(small);
+  }
+
+  if (source.excerpt) {
+    const excerpt = document.createElement("p");
+    excerpt.textContent = source.excerpt;
+    item.append(excerpt);
+  }
+
+  return item;
 }
 
 function renderTree() {
@@ -870,6 +989,7 @@ function relationshipIds(id, index) {
 
 function selectPerson(id, reroot = true, openProfile = true) {
   state.selectedId = id;
+  state.sourcesExpanded = false;
   if (openProfile) state.profileCollapsed = false;
   if (reroot) {
     state.rootId = id;
@@ -1026,6 +1146,29 @@ function formatYears(person) {
 function formatEvent(event) {
   if (!event) return "";
   return [event.date, event.place].filter(Boolean).join(" - ");
+}
+
+function namesForIds(ids = []) {
+  return [...ids]
+    .map((id) => personById(id)?.name)
+    .filter(Boolean);
+}
+
+function formatNameList(names) {
+  if (names.length <= 1) return names[0] || "";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+
+function givenName(name = "") {
+  return name.split(/\s+/).find(Boolean) || "They";
+}
+
+function splitParagraphs(value = "") {
+  return String(value)
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
 }
 
 function svgEl(name, attrs) {

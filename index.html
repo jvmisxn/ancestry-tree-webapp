@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>JMO Ancestry</title>
-    <link rel="stylesheet" href="./src/styles.css?v=diagonal-ancestor-lanes-1" />
+    <link rel="stylesheet" href="./src/styles.css?v=life-profile-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -68,7 +68,10 @@
           <div class="profile-actions">
             <button id="center-person" type="button">Make tree focus</button>
             <button id="home-person" type="button">Return to start</button>
+            <button id="toggle-sources" type="button" aria-expanded="false">Sources</button>
           </div>
+          <div id="detail-photo" class="profile-photo"></div>
+          <article id="detail-story" class="life-story"></article>
           <dl id="detail-facts"></dl>
           <div id="detail-notes" class="notes"></div>
         </section>
@@ -78,13 +81,13 @@
           <div id="detail-relations" class="relation-list"></div>
         </section>
 
-        <section class="panel">
+        <section id="sources-panel" class="panel sources-panel">
           <h2>Sources</h2>
           <div id="detail-sources" class="source-list"></div>
         </section>
       </aside>
     </main>
 
-    <script type="module" src="./src/app.js?v=diagonal-ancestor-lanes-1"></script>
+    <script type="module" src="./src/app.js?v=life-profile-1"></script>
   </body>
 </html>
