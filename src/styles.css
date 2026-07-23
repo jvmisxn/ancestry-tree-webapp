@@ -497,6 +497,30 @@ dd {
   cursor: pointer;
 }
 
+.ancestor-expander {
+  cursor: pointer;
+}
+
+.ancestor-expander rect {
+  fill: #f4faf8;
+  stroke: rgba(49, 95, 80, 0.44);
+  stroke-width: 1.4;
+  filter: drop-shadow(0 4px 7px rgba(57, 35, 20, 0.09));
+}
+
+.ancestor-expander:hover rect,
+.ancestor-expander:focus rect {
+  fill: #e8f4f0;
+  stroke: #1f6f63;
+}
+
+.ancestor-expander-text {
+  fill: #1f6f63;
+  font-size: 11px;
+  font-weight: 900;
+  pointer-events: none;
+}
+
 .tree-node.dimmed {
   opacity: 0.42;
 }
