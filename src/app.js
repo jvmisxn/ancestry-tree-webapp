@@ -337,6 +337,7 @@ function walkLine(rootId, key, index) {
 function layoutNodes(branch, index) {
   const nodeGap = state.collapseCollateral ? 204 : 206;
   const groupGap = state.collapseCollateral ? 84 : 68;
+  const ancestorSideGap = state.collapseCollateral ? 168 : 140;
   const laneGap = 86;
   const generationGap = 148;
   const maxGroupColumns = state.collapseCollateral ? 5 : 3;
@@ -356,11 +357,21 @@ function layoutNodes(branch, index) {
   for (const [generation, rowPeople] of sortedRows) {
     const groups = familyGroups(rowPeople, index, directOrder);
     const widths = groups.map((group) => Math.min(maxGroupColumns, Math.max(1, group.people.length)) * nodeGap);
+    const groupSides = groups.map((group) => ancestorSideForGroup(root.id, group, index));
+    const sideBreaks = groupSides.reduce((total, side, index) => {
+      if (index === 0) return total;
+      return total + (isSideBreak(groupSides[index - 1], side) ? 1 : 0);
+    }, 0);
     const maxRows = Math.max(...groups.map((group) => Math.ceil(group.people.length / maxGroupColumns)), 1);
-    const rowWidth = widths.reduce((total, width) => total + width, 0) + Math.max(0, groups.length - 1) * groupGap;
+    const rowWidth = widths.reduce((total, width) => total + width, 0)
+      + Math.max(0, groups.length - 1) * groupGap
+      + (generation < 0 ? sideBreaks * ancestorSideGap : 0);
     let x = 450 - rowWidth / 2;
 
     groups.forEach((group, groupIndex) => {
+      if (groupIndex > 0 && generation < 0 && isSideBreak(groupSides[groupIndex - 1], groupSides[groupIndex])) {
+        x += ancestorSideGap;
+      }
       const groupWidth = widths[groupIndex];
       group.people.forEach((person, index) => {
         const lane = Math.floor(index / maxGroupColumns);
@@ -465,6 +476,43 @@ function familyGroups(rowPeople, index, directOrder) {
   }
 
   return groups.sort((a, b) => a.anchor - b.anchor || a.key.localeCompare(b.key));
+}
+
+function ancestorSideForGroup(rootId, group, index) {
+  const rootParents = [...(index.get(rootId)?.parents || [])];
+  if (rootParents.length < 2) return null;
+  const candidates = [...group.parents, ...group.people.map((person) => person.id)];
+  const sides = candidates
+    .map((id) => ancestorSide(rootParents, id, index))
+    .filter((side) => side !== null);
+  return sides.length ? Math.min(...sides) : null;
+}
+
+function ancestorSide(rootParents, targetId, index) {
+  const directSide = rootParents.indexOf(targetId);
+  if (directSide !== -1) return directSide;
+
+  for (let side = 0; side < rootParents.length; side += 1) {
+    if (isAncestorOf(targetId, rootParents[side], index)) return side;
+  }
+  return null;
+}
+
+function isAncestorOf(ancestorId, descendantId, index) {
+  const queue = [...(index.get(descendantId)?.parents || [])];
+  const seen = new Set();
+  while (queue.length) {
+    const id = queue.shift();
+    if (id === ancestorId) return true;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    queue.push(...(index.get(id)?.parents || []));
+  }
+  return false;
+}
+
+function isSideBreak(left, right) {
+  return left !== null && right !== null && left !== right;
 }
 
 function familyFallbackKey(person, rowPeople, index) {
