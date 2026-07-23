@@ -252,6 +252,13 @@ function renderTree() {
   if (state.scale < 0.5) g.classList.add("overview-scale");
   els.svg.append(g);
 
+  for (const link of links) {
+    g.append(svgEl("path", {
+      class: `tree-link ${link.kind || ""} ${!state.collapseCollateral && !link.direct ? "dimmed" : ""}`,
+      d: link.d,
+    }));
+  }
+
   for (const unit of familyUnits) {
     g.append(svgEl("rect", {
       class: `family-unit ${!state.collapseCollateral && !unit.direct ? "dimmed" : ""}`,
@@ -262,15 +269,8 @@ function renderTree() {
       rx: 10,
     }));
     if (unit.label) {
-      g.append(svgText(unit.label, unit.x + 14, unit.y + 20, "family-label", "start"));
+      g.append(svgText(unit.label, unit.x + 14, unit.y + 18, "family-label", "start"));
     }
-  }
-
-  for (const link of links) {
-    g.append(svgEl("path", {
-      class: `tree-link ${link.kind || ""} ${!state.collapseCollateral && !link.direct ? "dimmed" : ""}`,
-      d: link.d,
-    }));
   }
 
   for (const node of nodes) {
@@ -281,7 +281,7 @@ function renderTree() {
     if (state.collapseCollateral && hiddenParents > 0) {
       const expand = svgEl("g", {
         class: "ancestor-expander",
-        transform: `translate(${node.x} ${node.y - 52})`,
+        transform: `translate(${node.x} ${node.y - 54})`,
         tabindex: "0",
         role: "button",
         "aria-label": `Show parents of ${node.person.name}`,
@@ -481,7 +481,7 @@ function layoutFamilyUnits(nodes, index, directIds) {
     .map(([key, groupNodes]) => {
       const minX = Math.min(...groupNodes.map((node) => node.x)) - 112;
       const maxX = Math.max(...groupNodes.map((node) => node.x)) + 112;
-      const minY = Math.min(...groupNodes.map((node) => node.y)) - 74;
+      const minY = Math.min(...groupNodes.map((node) => node.y)) - 106;
       const maxY = Math.max(...groupNodes.map((node) => node.y)) + 42;
       return {
         key,
