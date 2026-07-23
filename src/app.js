@@ -296,6 +296,13 @@ function profileSources(person) {
   const sourceLike = [
     ...(person.sources || []),
     ...(person.profile?.sources || []),
+    ...profilePhotos(person).map((photo) => ({
+      label: photo.caption || `Photo of ${person.name}`,
+      title: photo.caption,
+      url: photo.sourceUrl || photo.url,
+      repository: photo.credit,
+      type: "photo",
+    })),
     ...(person.profile?.obituaries || []),
     ...(person.obituaries || []),
   ];
