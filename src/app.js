@@ -299,7 +299,14 @@ function profileSources(person) {
     ...(person.profile?.obituaries || []),
     ...(person.obituaries || []),
   ];
-  return sourceLike.filter((source) => source?.label || source?.title || source?.url);
+  const seen = new Set();
+  return sourceLike.filter((source) => {
+    if (!source?.label && !source?.title && !source?.url) return false;
+    const key = source.url || source.label || source.title;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function primaryObituary(person) {
