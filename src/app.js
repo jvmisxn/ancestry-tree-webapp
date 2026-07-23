@@ -12,6 +12,17 @@ const state = {
   sourcesExpanded: false,
 };
 
+const NODE = {
+  width: 214,
+  height: 76,
+  photoSize: 44,
+  portraitX: -72,
+  textX: 28,
+};
+
+const NODE_HALF_WIDTH = NODE.width / 2;
+const NODE_HALF_HEIGHT = NODE.height / 2;
+
 const els = {
   search: document.querySelector("#person-search"),
   list: document.querySelector("#person-list"),
@@ -414,7 +425,7 @@ function renderTree() {
     if (state.collapseCollateral && hiddenParents > 0) {
       const expand = svgEl("g", {
         class: "ancestor-expander",
-        transform: `translate(${node.x} ${node.y - 54})`,
+        transform: `translate(${node.x} ${node.y - NODE_HALF_HEIGHT - 28})`,
         tabindex: "0",
         role: "button",
         "aria-label": `Show parents of ${node.person.name}`,
@@ -453,11 +464,64 @@ function renderTree() {
       }
     });
 
-    group.append(svgEl("rect", { x: -96, y: -30, width: 192, height: 60, rx: 8 }));
-    group.append(svgText(node.person.name, 0, -4, "node-name"));
-    group.append(svgText(formatYears(node.person), 0, 17, "node-years"));
+    group.append(svgEl("rect", { x: -NODE_HALF_WIDTH, y: -NODE_HALF_HEIGHT, width: NODE.width, height: NODE.height, rx: 8 }));
+    renderTreePortrait(group, node.person);
+    const name = svgText(shortNodeName(node.person.name), NODE.textX, -7, "node-name");
+    if (node.person.name.length > shortNodeName(node.person.name).length) {
+      const title = svgEl("title", {});
+      title.textContent = node.person.name;
+      name.append(title);
+    }
+    group.append(name);
+    group.append(svgText(formatYears(node.person), NODE.textX, 16, "node-years"));
     g.append(group);
   }
+}
+
+function renderTreePortrait(group, person) {
+  const [photo] = profilePhotos(person);
+  const initials = person.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+  const radius = NODE.photoSize / 2;
+  const x = NODE.portraitX - radius;
+  const y = -radius;
+  const clipId = `portrait-${cssSafeId(person.id)}`;
+
+  group.append(svgEl("circle", {
+    class: "node-photo-placeholder",
+    cx: NODE.portraitX,
+    cy: 0,
+    r: radius,
+  }));
+  group.append(svgText(initials || "?", NODE.portraitX, 5, "node-photo-initials"));
+
+  if (!photo) return;
+
+  const defs = svgEl("defs", {});
+  const clip = svgEl("clipPath", { id: clipId });
+  clip.append(svgEl("circle", { cx: NODE.portraitX, cy: 0, r: radius }));
+  defs.append(clip);
+  group.append(defs);
+
+  const image = svgEl("image", {
+    class: "node-photo",
+    href: photo.url,
+    x,
+    y,
+    width: NODE.photoSize,
+    height: NODE.photoSize,
+    "clip-path": `url(#${clipId})`,
+    preserveAspectRatio: "xMidYMid slice",
+  });
+  image.addEventListener("error", () => {
+    image.remove();
+  });
+  group.append(image);
 }
 
 function buildBranch(rootId, index, visibleIds = null) {
@@ -544,11 +608,11 @@ function walkLine(rootId, key, index) {
 }
 
 function layoutNodes(branch, index) {
-  const nodeGap = state.collapseCollateral ? 204 : 206;
+  const nodeGap = state.collapseCollateral ? 226 : 228;
   const groupGap = state.collapseCollateral ? 84 : 68;
   const ancestorSideGap = state.collapseCollateral ? 168 : 140;
   const laneGap = 86;
-  const generationGap = 148;
+  const generationGap = 164;
   const maxGroupColumns = state.collapseCollateral ? 5 : 3;
   const root = personById(state.rootId);
   const rows = new Map();
@@ -599,7 +663,71 @@ function layoutNodes(branch, index) {
     });
     y += generationGap + (maxRows - 1) * laneGap;
   }
+  applyProgressiveAncestorLanes(nodes, index);
   return nodes;
+}
+
+function applyProgressiveAncestorLanes(nodes, index) {
+  if (!state.collapseCollateral) return;
+
+  const nodeById = new Map(nodes.map((node) => [node.person.id, node]));
+  const rows = new Map();
+  for (const node of nodes) {
+    const generation = generationOffset(state.rootId, node.person.id, index);
+    if (generation >= 0) continue;
+    if (!rows.has(generation)) rows.set(generation, []);
+    rows.get(generation).push(node);
+  }
+
+  const generations = [...rows.keys()].sort((a, b) => b - a);
+  const parentStep = 132;
+  const minGap = NODE.width + 18;
+
+  for (const generation of generations) {
+    const targetsByParent = new Map();
+    for (const childNode of nodes) {
+      if (generationOffset(state.rootId, childNode.person.id, index) !== generation + 1) continue;
+      const orderedParents = orderedParentIds(childNode.person.id, index).filter((id) => nodeById.has(id));
+      orderedParents.forEach((parentId, order) => {
+        const side = parentLaneDirection(order, orderedParents.length);
+        if (side === 0) return;
+        const targets = targetsByParent.get(parentId) || [];
+        targets.push(childNode.x + side * parentStep);
+        targetsByParent.set(parentId, targets);
+      });
+    }
+
+    for (const node of rows.get(generation) || []) {
+      const targets = targetsByParent.get(node.person.id);
+      if (!targets?.length) continue;
+      node.x = targets.reduce((total, x) => total + x, 0) / targets.length;
+    }
+
+    const ordered = [...(rows.get(generation) || [])].sort((a, b) => a.x - b.x);
+    for (let index = 1; index < ordered.length; index += 1) {
+      const previous = ordered[index - 1];
+      const current = ordered[index];
+      const overlap = previous.x + minGap - current.x;
+      if (overlap > 0) current.x += overlap;
+    }
+  }
+}
+
+function orderedParentIds(childId, index) {
+  const person = personById(childId);
+  const recorded = person?.parents || [];
+  const relationParents = [...(index.get(childId)?.parents || [])];
+  return [
+    ...recorded.filter((id) => relationParents.includes(id)),
+    ...relationParents.filter((id) => !recorded.includes(id)),
+  ];
+}
+
+function parentLaneDirection(order, count) {
+  if (count === 1) return -1;
+  if (order === 0) return -1;
+  if (order === 1) return 1;
+  return order % 2 === 0 ? -1 : 1;
 }
 
 function layoutFamilyUnits(nodes, index, directIds) {
@@ -613,10 +741,10 @@ function layoutFamilyUnits(nodes, index, directIds) {
   return [...groups.entries()]
     .filter(([, groupNodes]) => groupNodes.length > 1 || siblingParentIds(groupNodes[0].person.id, index).length)
     .map(([key, groupNodes]) => {
-      const minX = Math.min(...groupNodes.map((node) => node.x)) - 112;
-      const maxX = Math.max(...groupNodes.map((node) => node.x)) + 112;
-      const minY = Math.min(...groupNodes.map((node) => node.y)) - 106;
-      const maxY = Math.max(...groupNodes.map((node) => node.y)) + 42;
+      const minX = Math.min(...groupNodes.map((node) => node.x)) - NODE_HALF_WIDTH - 16;
+      const maxX = Math.max(...groupNodes.map((node) => node.x)) + NODE_HALF_WIDTH + 16;
+      const minY = Math.min(...groupNodes.map((node) => node.y)) - NODE_HALF_HEIGHT - 76;
+      const maxY = Math.max(...groupNodes.map((node) => node.y)) + NODE_HALF_HEIGHT + 12;
       return {
         key,
         x: minX,
@@ -879,7 +1007,7 @@ function layoutLinks(nodes, index, directIds) {
 
   for (const { parentIds, children } of familyMap.values()) {
     const parents = parentIds.map((id) => nodeById.get(id));
-    const parentBottomY = Math.max(...parents.map((parent) => parent.y)) + 30;
+    const parentBottomY = Math.max(...parents.map((parent) => parent.y)) + NODE_HALF_HEIGHT;
     const parentCenter = parents.reduce((total, parent) => total + parent.x, 0) / parents.length;
     const direct = children.some((child) => directIds.has(child.person.id)) && parentIds.some((id) => directIds.has(id));
 
@@ -891,7 +1019,7 @@ function layoutLinks(nodes, index, directIds) {
         links.push({
           kind: "spouse-link",
           direct: directIds.has(left.person.id) && directIds.has(right.person.id),
-          d: `M ${left.x + 96} ${left.y} L ${right.x - 96} ${right.y}`,
+          d: `M ${left.x + NODE_HALF_WIDTH} ${left.y} L ${right.x - NODE_HALF_WIDTH} ${right.y}`,
         });
       }
     }
@@ -901,13 +1029,13 @@ function layoutLinks(nodes, index, directIds) {
       links.push({
         kind: "family-link",
         direct: directIds.has(childNode.person.id) && parentIds.some((id) => directIds.has(id)),
-        d: familyCurvePath(parentCenter, parentBottomY, childNode.x, childNode.y - 30),
+        d: familyCurvePath(parentCenter, parentBottomY, childNode.x, childNode.y - NODE_HALF_HEIGHT),
       });
       continue;
     }
 
     const childrenByX = [...children].sort((a, b) => a.x - b.x);
-    const childTopY = Math.min(...childrenByX.map((child) => child.y)) - 30;
+    const childTopY = Math.min(...childrenByX.map((child) => child.y)) - NODE_HALF_HEIGHT;
     const busY = childTopY - 26;
     const minChildX = Math.min(...childrenByX.map((child) => child.x));
     const maxChildX = Math.max(...childrenByX.map((child) => child.x));
@@ -927,7 +1055,7 @@ function layoutLinks(nodes, index, directIds) {
       links.push({
         kind: "family-link",
         direct: directIds.has(childNode.person.id) && parentIds.some((id) => directIds.has(id)),
-        d: `M ${childNode.x} ${busY} L ${childNode.x} ${childNode.y - 30}`,
+        d: `M ${childNode.x} ${busY} L ${childNode.x} ${childNode.y - NODE_HALF_HEIGHT}`,
       });
     }
   }
@@ -943,7 +1071,7 @@ function layoutLinks(nodes, index, directIds) {
       links.push({
         kind: "spouse-link",
         direct: directIds.has(left.person.id) && directIds.has(right.person.id),
-        d: `M ${left.x + 96} ${left.y} L ${right.x - 96} ${right.y}`,
+        d: `M ${left.x + NODE_HALF_WIDTH} ${left.y} L ${right.x - NODE_HALF_WIDTH} ${right.y}`,
       });
     }
   }
@@ -959,10 +1087,10 @@ function treeBounds(nodes) {
   if (!nodes.length) return { minX: 0, maxX: 0, minY: 0, maxY: 0, width: 0, height: 0 };
   const xs = nodes.map((node) => node.x);
   const ys = nodes.map((node) => node.y);
-  const minX = Math.min(...xs) - 110;
-  const maxX = Math.max(...xs) + 110;
-  const minY = Math.min(...ys) - 96;
-  const maxY = Math.max(...ys) + 58;
+  const minX = Math.min(...xs) - NODE_HALF_WIDTH - 20;
+  const maxX = Math.max(...xs) + NODE_HALF_WIDTH + 20;
+  const minY = Math.min(...ys) - NODE_HALF_HEIGHT - 86;
+  const maxY = Math.max(...ys) + NODE_HALF_HEIGHT + 20;
   return {
     minX,
     maxX,
@@ -1183,6 +1311,15 @@ function splitParagraphs(value = "") {
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
+}
+
+function shortNodeName(name = "") {
+  const clean = String(name).replace(/\s+/g, " ").trim();
+  return clean.length > 25 ? `${clean.slice(0, 24)}...` : clean;
+}
+
+function cssSafeId(value = "") {
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, "-");
 }
 
 function svgEl(name, attrs) {

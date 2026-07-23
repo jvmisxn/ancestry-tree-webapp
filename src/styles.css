@@ -536,6 +536,12 @@ dd {
   display: none;
 }
 
+.overview-scale .node-photo,
+.overview-scale .node-photo-placeholder,
+.overview-scale .node-photo-initials {
+  display: none;
+}
+
 .overview-scale .tree-node rect {
   filter: none;
 }
@@ -607,7 +613,7 @@ dd {
 
 .node-name {
   fill: var(--ink);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -615,6 +621,23 @@ dd {
   fill: var(--muted);
   font-size: 12px;
   font-weight: 700;
+}
+
+.node-photo-placeholder {
+  fill: #eadcc5;
+  stroke: rgba(124, 58, 36, 0.28);
+  stroke-width: 1.2;
+}
+
+.node-photo {
+  pointer-events: none;
+}
+
+.node-photo-initials {
+  fill: rgba(79, 60, 42, 0.7);
+  font-size: 12px;
+  font-weight: 900;
+  pointer-events: none;
 }
 
 dl {
