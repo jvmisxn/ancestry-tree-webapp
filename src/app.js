@@ -670,7 +670,9 @@ function layoutNodes(branch, index) {
 function applyProgressiveAncestorLanes(nodes, index) {
   if (!state.collapseCollateral) return;
 
-  const nodeById = new Map(nodes.map((node) => [node.person.id, node]));
+  const rootNode = nodes.find((node) => node.person.id === state.rootId);
+  if (!rootNode) return;
+
   const rows = new Map();
   for (const node of nodes) {
     const generation = generationOffset(state.rootId, node.person.id, index);
@@ -679,38 +681,94 @@ function applyProgressiveAncestorLanes(nodes, index) {
     rows.get(generation).push(node);
   }
 
-  const generations = [...rows.keys()].sort((a, b) => b - a);
-  const parentStep = 132;
-  const minGap = NODE.width + 18;
+  const rootParents = orderedParentIds(state.rootId, index);
+  const minGap = NODE.width + 22;
+  const centerGap = NODE_HALF_WIDTH + 112;
 
-  for (const generation of generations) {
-    const targetsByParent = new Map();
-    for (const childNode of nodes) {
-      if (generationOffset(state.rootId, childNode.person.id, index) !== generation + 1) continue;
-      const orderedParents = orderedParentIds(childNode.person.id, index).filter((id) => nodeById.has(id));
-      orderedParents.forEach((parentId, order) => {
-        const side = parentLaneDirection(order, orderedParents.length);
-        if (side === 0) return;
-        const targets = targetsByParent.get(parentId) || [];
-        targets.push(childNode.x + side * parentStep);
-        targetsByParent.set(parentId, targets);
-      });
+  for (const rowNodes of rows.values()) {
+    for (const node of rowNodes) {
+      const path = ancestorPathFromRoot(state.rootId, node.person.id, index);
+      if (!path.length) continue;
+      node.ancestorPath = path;
+      node.x = rootNode.x + ancestorPathOffset(path, rootParents.length);
     }
+  }
 
-    for (const node of rows.get(generation) || []) {
-      const targets = targetsByParent.get(node.person.id);
-      if (!targets?.length) continue;
-      node.x = targets.reduce((total, x) => total + x, 0) / targets.length;
-    }
+  for (const rowNodes of rows.values()) {
+    const left = rowNodes
+      .filter((node) => ancestorLaneDirection(node.ancestorPath, rootParents.length) < 0)
+      .sort((a, b) => b.x - a.x);
+    const right = rowNodes
+      .filter((node) => ancestorLaneDirection(node.ancestorPath, rootParents.length) > 0)
+      .sort((a, b) => a.x - b.x);
+    const middle = rowNodes
+      .filter((node) => ancestorLaneDirection(node.ancestorPath, rootParents.length) === 0)
+      .sort((a, b) => a.x - b.x);
 
-    const ordered = [...(rows.get(generation) || [])].sort((a, b) => a.x - b.x);
-    for (let index = 1; index < ordered.length; index += 1) {
-      const previous = ordered[index - 1];
-      const current = ordered[index];
+    pushBranchAwayFromCenter(left, rootNode.x - centerGap, -1, minGap);
+    pushBranchAwayFromCenter(right, rootNode.x + centerGap, 1, minGap);
+
+    for (let index = 1; index < middle.length; index += 1) {
+      const previous = middle[index - 1];
+      const current = middle[index];
       const overlap = previous.x + minGap - current.x;
       if (overlap > 0) current.x += overlap;
     }
   }
+}
+
+function ancestorPathFromRoot(rootId, targetId, index) {
+  const queue = [{ id: rootId, path: [] }];
+  const seen = new Set();
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (current.id === targetId) return current.path;
+    if (seen.has(current.id)) continue;
+    seen.add(current.id);
+
+    const parents = orderedParentIds(current.id, index);
+    parents.forEach((parentId, order) => {
+      queue.push({ id: parentId, path: [...current.path, order] });
+    });
+  }
+
+  return [];
+}
+
+function ancestorPathOffset(path, rootParentCount) {
+  const direction = ancestorLaneDirection(path, rootParentCount);
+  if (!direction) return 0;
+
+  const sideStep = 188;
+  const generationStep = 122;
+  const branchStep = 58;
+  let offset = direction * (sideStep + Math.max(0, path.length - 1) * generationStep);
+
+  for (let index = 1; index < path.length; index += 1) {
+    const parentDirection = parentLaneDirection(path[index], 2);
+    offset += parentDirection * (branchStep / index);
+  }
+
+  return offset;
+}
+
+function ancestorLaneDirection(path, rootParentCount) {
+  if (!path?.length) return 0;
+  return parentLaneDirection(path[0], rootParentCount);
+}
+
+function pushBranchAwayFromCenter(nodes, centerLimit, direction, minGap) {
+  nodes.forEach((node, index) => {
+    if (index === 0) {
+      node.x = direction < 0 ? Math.min(node.x, centerLimit) : Math.max(node.x, centerLimit);
+      return;
+    }
+
+    const previous = nodes[index - 1];
+    const nextLimit = previous.x + direction * minGap;
+    node.x = direction < 0 ? Math.min(node.x, nextLimit) : Math.max(node.x, nextLimit);
+  });
 }
 
 function orderedParentIds(childId, index) {
