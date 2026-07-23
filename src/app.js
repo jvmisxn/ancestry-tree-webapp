@@ -1026,10 +1026,16 @@ function layoutLinks(nodes, index, directIds) {
 
     if (children.length === 1) {
       const childNode = children[0];
+      const directChild = directIds.has(childNode.person.id) && parentIds.some((id) => directIds.has(id));
+      const linkStartX = directChild && state.collapseCollateral
+        ? directParentAnchorX(parentIds, childNode.person.id, nodeById, index, directIds, parentCenter)
+        : parentCenter;
       links.push({
         kind: "family-link",
-        direct: directIds.has(childNode.person.id) && parentIds.some((id) => directIds.has(id)),
-        d: familyCurvePath(parentCenter, parentBottomY, childNode.x, childNode.y - NODE_HALF_HEIGHT),
+        direct: directChild,
+        d: directChild && state.collapseCollateral
+          ? directAncestorPath(linkStartX, parentBottomY, childNode.x, childNode.y - NODE_HALF_HEIGHT)
+          : familyCurvePath(linkStartX, parentBottomY, childNode.x, childNode.y - NODE_HALF_HEIGHT),
       });
       continue;
     }
@@ -1076,6 +1082,16 @@ function layoutLinks(nodes, index, directIds) {
     }
   }
   return links;
+}
+
+function directParentAnchorX(parentIds, childId, nodeById, index, directIds, fallbackX) {
+  const directParentId = orderedParentIds(childId, index)
+    .find((id) => parentIds.includes(id) && directIds.has(id) && nodeById.has(id));
+  return directParentId ? nodeById.get(directParentId).x : fallbackX;
+}
+
+function directAncestorPath(startX, startY, endX, endY) {
+  return `M ${startX} ${startY} L ${endX} ${endY}`;
 }
 
 function familyCurvePath(startX, startY, endX, endY) {
