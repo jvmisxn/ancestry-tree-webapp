@@ -1304,7 +1304,17 @@ function fitTreeAfterLayout() {
 function onZoom(event) {
   event.preventDefault();
   const direction = event.deltaY > 0 ? -0.08 : 0.08;
-  state.scale = Math.min(1.8, Math.max(0.34, state.scale + direction));
+  const nextScale = Math.min(1.8, Math.max(0.34, state.scale + direction));
+  if (nextScale === state.scale) return;
+
+  // Anchor the zoom to the cursor so the point under it stays put.
+  const rect = els.viewport.getBoundingClientRect();
+  const pointerX = event.clientX - rect.left;
+  const pointerY = event.clientY - rect.top;
+  const ratio = nextScale / state.scale;
+  state.offsetX = pointerX - (pointerX - state.offsetX) * ratio;
+  state.offsetY = pointerY - (pointerY - state.offsetY) * ratio;
+  state.scale = nextScale;
   renderTree();
 }
 
